@@ -15,42 +15,74 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
   title = 'Ambil Foto Kendaraan',
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Helper untuk mematikan seluruh track hardware kamera secara eksplisit
+  const stopCameraHardware = () => {
+    // 1. Matikan track dari ref
+    if (streamRef.current) {
+      try {
+        const tracks = streamRef.current.getTracks();
+        tracks.forEach((track) => {
+          track.stop();
+          track.enabled = false;
+        });
+      } catch (err) {
+        console.warn('Error stopping stream tracks:', err);
+      }
+      streamRef.current = null;
+    }
+
+    // 2. Putuskan srcObject pada video element
+    if (videoRef.current) {
+      if (videoRef.current.srcObject) {
+        try {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach((track) => {
+            track.stop();
+            track.enabled = false;
+          });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      videoRef.current.srcObject = null;
+    }
+  };
+
   const startCamera = async (mode: 'environment' | 'user') => {
-    stopCamera();
+    // Matikan stream lama sebelum inisialisasi stream baru
+    stopCameraHardware();
     setErrorMsg(null);
+
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: mode, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
-      setStream(mediaStream);
+      streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
       }
     } catch (err: any) {
-      console.error('Camera error:', err);
-      // Fallback: try basic video without facingMode constraint
+      console.error('Camera primary error:', err);
+      // Fallback tanpa constraint facingMode
       try {
-        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        setStream(fallbackStream);
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+        streamRef.current = fallbackStream;
         if (videoRef.current) {
           videoRef.current.srcObject = fallbackStream;
         }
       } catch (fallbackErr) {
-        setErrorMsg('Gagal mengakses kamera. Pastikan izin kamera telah diberikan di browser.');
+        console.error('Camera fallback error:', fallbackErr);
+        setErrorMsg('Gagal mengakses kamera. Pastikan izin kamera telah diberikan di peramban.');
       }
-    }
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
     }
   };
 
@@ -59,12 +91,19 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
       setCapturedPhoto(null);
       startCamera(facingMode);
     } else {
-      stopCamera();
+      stopCameraHardware();
     }
+
+    // Cleanup saat unmount atau saat isOpen berubah ke false
     return () => {
-      stopCamera();
+      stopCameraHardware();
     };
   }, [isOpen]);
+
+  const handleCloseModal = () => {
+    stopCameraHardware();
+    onClose();
+  };
 
   const switchCamera = () => {
     const nextMode = facingMode === 'environment' ? 'user' : 'environment';
@@ -89,6 +128,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   const confirmPhoto = () => {
     if (capturedPhoto) {
+      stopCameraHardware();
       onCapture(capturedPhoto);
       onClose();
     }
@@ -96,9 +136,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   const retakePhoto = () => {
     setCapturedPhoto(null);
-    if (!stream) {
-      startCamera(facingMode);
-    }
+    startCamera(facingMode);
   };
 
   if (!isOpen) return null;
@@ -113,14 +151,14 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
             <h3 className="font-semibold text-white text-base">{title}</h3>
           </div>
           <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+            onClick={handleCloseModal}
+            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Viewport */}
+        {/* Viewport Kamera */}
         <div className="relative aspect-video w-full bg-black flex items-center justify-center overflow-hidden">
           {errorMsg ? (
             <div className="text-center p-6 text-red-400 text-sm">
@@ -153,7 +191,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <button
                 type="button"
                 onClick={retakePhoto}
-                className="flex items-center space-x-2 px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm font-medium transition"
+                className="flex items-center space-x-2 px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm font-medium transition cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Foto Ulang</span>
@@ -161,7 +199,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <button
                 type="button"
                 onClick={confirmPhoto}
-                className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-600/30 transition"
+                className="flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-600/30 transition cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 <span>Gunakan Foto</span>
@@ -172,7 +210,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <button
                 type="button"
                 onClick={switchCamera}
-                className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-medium transition"
+                className="flex items-center space-x-2 px-3 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-medium transition cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Balik Kamera</span>
@@ -181,7 +219,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <button
                 type="button"
                 onClick={takeSnapshot}
-                className="flex items-center space-x-2 px-6 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/30 active:scale-95 transition"
+                className="flex items-center space-x-2 px-6 py-3 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-600/30 active:scale-95 transition cursor-pointer"
               >
                 <Camera className="w-5 h-5" />
                 <span>Jepret Foto</span>
