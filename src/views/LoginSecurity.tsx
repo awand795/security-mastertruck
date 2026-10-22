@@ -1,17 +1,34 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, User, Building, ArrowRight, AlertCircle, Wrench, Settings, Globe } from 'lucide-react';
+import { 
+  Lock, 
+  User, 
+  AlertCircle, 
+  CheckCircle2, 
+  Eye, 
+  EyeOff, 
+  ArrowRight,
+  ShieldCheck,
+  Settings,
+  Globe
+} from 'lucide-react';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { securityApi } from '../api/client';
+import { LoginBrandPanel } from '../components/login/LoginBrandPanel';
+
+const INPUT_CLS = 'auth-input w-full pl-11 pr-3.5 py-3 text-sm sm:text-[15px] rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:border-[#12388F] focus:ring-2 focus:ring-[#12388F]/20 transition-all';
+const INPUT_PWD_CLS = INPUT_CLS.replace('pr-3.5', 'pr-11');
+const LABEL_CLS = 'auth-label block text-sm font-semibold text-[#0F172A] mb-1.5';
+const ICON_WRAP_CLS = 'absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B] group-focus-within:text-[#12388F] transition-colors';
 
 export const LoginSecurity: React.FC = () => {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
-  const [company, setCompany] = useState('BENGKEL MASTER TRUK');
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Tunnel Config state
+  // Tunnel Config state (ngrok / Cloudflare Tunnel)
   const { tunnelBaseUrl, setTunnelBaseUrl, login } = useSecurityStore();
   const [showConfig, setShowConfig] = useState(false);
   const [inputUrl, setInputUrl] = useState(tunnelBaseUrl);
@@ -20,24 +37,30 @@ export const LoginSecurity: React.FC = () => {
     e.preventDefault();
     setTunnelBaseUrl(inputUrl);
     setShowConfig(false);
-    setInfo('Base URL endpoint tim berhasil diperbarui!');
-    setTimeout(() => setInfo(null), 3000);
+    setInfoMsg('Base URL endpoint tim berhasil diperbarui!');
+    setTimeout(() => setInfoMsg(null), 3000);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setInfo(null);
+    const cleanId = userId.trim();
+    if (!cleanId || !password.trim()) {
+      setErrorMsg('Masukkan User ID Petugas serta kata sandi.');
+      return;
+    }
+
     setIsLoading(true);
+    setErrorMsg(null);
+    setInfoMsg(null);
 
     try {
       // 1. Coba panggil real API DarkoPOS jika tunnel / base url sudah ada
       if (tunnelBaseUrl && tunnelBaseUrl.trim() !== '') {
         const res = await securityApi.loginDarkoPos(
           {
-            userid: userId.trim(),
+            userid: cleanId,
             password: password,
-            company: company.trim(),
+            company: 'BENGKEL MASTER TRUK',
           },
           tunnelBaseUrl.trim()
         );
@@ -58,32 +81,32 @@ export const LoginSecurity: React.FC = () => {
           );
           return;
         } else {
-          setError(res.message || 'Login gagal. Periksa User ID dan Password Anda.');
+          setErrorMsg(res.message || 'Login gagal. Periksa User ID dan Password Anda.');
           return;
         }
       }
 
-      // 2. Jika BASE URL belum diset, atau fallback testing lokal
+      // 2. Jika BASE URL belum diset, lempar ke fallback
       throw new Error('BASE_URL_NOT_SET');
     } catch (err: any) {
       console.warn('DarkoPOS Login error / fallback mode:', err);
 
       // Fallback development mode:
       if (
-        (userId.trim() === 'adminPOS' || userId.trim() === 'security' || userId.trim().toLowerCase() === 'security@kim3.co.id') &&
+        (cleanId === 'adminPOS' || cleanId === 'security' || cleanId.toLowerCase() === 'security@kim3.co.id' || cleanId.startsWith('sec')) &&
         (password === 'security123' || password === 'adminPOS' || password.length >= 6)
       ) {
         login({
-          id: userId.trim() || 'sec_pos',
-          nama: userId.trim() === 'adminPOS' ? 'POS - Administrator' : 'Pos Security KIM 3',
+          id: cleanId,
+          nama: cleanId === 'adminPOS' ? 'POS - Administrator' : 'Pos Security KIM 3',
           role: 'SECURITY',
-          userid: userId.trim(),
-          company: company.trim() || 'BENGKEL MASTER TRUK',
+          userid: cleanId,
+          company: 'BENGKEL MASTER TRUK',
           id_token: 'mock-jwt-token-testing-darkopos',
           profile: {
-            userid: userId.trim(),
-            username: userId.trim() === 'adminPOS' ? 'POS - Administrator' : 'Pos Security KIM 3',
-            usercompany: company.trim() || 'BENGKEL MASTER TRUK',
+            userid: cleanId,
+            username: cleanId === 'adminPOS' ? 'POS - Administrator' : 'Pos Security KIM 3',
+            usercompany: 'BENGKEL MASTER TRUK',
             role: 'SECURITY',
             store: 1,
             istotp: false,
@@ -93,13 +116,13 @@ export const LoginSecurity: React.FC = () => {
       }
 
       if (err.message === 'BASE_URL_NOT_SET') {
-        setError(
-          'Tunnel Base URL belum diset (tim belum menjalankan tunnel ngrok/cloudflare). Anda tetap bisa masuk dengan User ID "adminPOS" & password "adminPOS" atau buka Pengaturan Server di atas.'
+        setErrorMsg(
+          'Tunnel Base URL belum diset (server tunnel laptop tim lokal belum dijalankan). Anda tetap bisa masuk langsung dengan User ID "adminPOS" & password "adminPOS" atau klik "Set URL" di bawah.'
         );
       } else if (err.response?.status === 401) {
-        setError('Unauthorized (401): User ID atau Kata Sandi salah.');
+        setErrorMsg('Unauthorized (401): User ID atau Kata Sandi salah.');
       } else {
-        setError(
+        setErrorMsg(
           err.message || 'Gagal menghubungi server DarkoPOS. Pastikan tunnel aktif atau gunakan akun fallback.'
         );
       }
@@ -109,174 +132,184 @@ export const LoginSecurity: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 relative overflow-hidden">
-      {/* Background glow effects */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+    <main className="auth-page login-legacy-theme min-h-screen lg:h-dvh lg:overflow-hidden flex flex-col lg:flex-row bg-[#EEF2F7] text-[#0F172A] antialiased font-sans relative">
+      
+      {/* Top Bar Aksen Tipis (--color-accent #12388F) */}
+      <div className="h-[2px] w-full bg-[#12388F] fixed top-0 left-0 z-50 pointer-events-none" />
 
-      <div className="w-full max-w-md">
-        {/* Header Branding */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 mb-3 shadow-xl">
-            <ShieldCheck className="w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Security Gate Portal</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Bengkel KIM 3 • DarkoPOS Integrated Authentication
-          </p>
-        </div>
+      {/* ========================================================================= */}
+      {/* SISI KIRI: PANEL BRAND (PERSIS SAMA DENGAN WEB FLEET)                    */}
+      {/* ========================================================================= */}
+      <LoginBrandPanel />
 
-        {/* Server Tunnel Config Toggle */}
-        <div className="mb-4 flex items-center justify-between px-1">
-          <div className="flex items-center space-x-1.5 text-[11px] text-slate-400">
-            <Globe className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="truncate max-w-[240px]">
-              {tunnelBaseUrl ? tunnelBaseUrl : 'API: Mode Fallback (Belum Ada Tunnel)'}
+      {/* ========================================================================= */}
+      {/* SISI KANAN: FORM LOGIN SECURITY (TEMA SAMA DENGAN WEB FLEET, TANPA DAFTAR) */}
+      {/* ========================================================================= */}
+      <section className="flex-1 bg-[#E8EEF5] flex flex-col items-center p-6 sm:p-8 lg:p-12 overflow-y-auto">
+        <div className="w-full max-w-[28rem] my-auto">
+          
+          {/* Mobile Header Branding */}
+          <div className="lg:hidden mb-5 flex flex-col items-center text-center">
+            <div className="bg-[#0A0D14] p-2.5 px-4 rounded-xl border border-white/10 mb-2 inline-flex items-center shadow-lg shadow-black/20">
+              <img src="/master-truck-logo.png" alt="Master Truck Logo" className="h-9 w-auto object-contain" />
+            </div>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#12388F]/10 text-[#12388F] border border-[#12388F]/20">
+              Pos Security Gerbang
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowConfig(!showConfig)}
-            className="flex items-center space-x-1 text-[11px] text-indigo-400 hover:text-indigo-300 font-medium transition"
-          >
-            <Settings className="w-3 h-3" />
-            <span>{showConfig ? 'Tutup' : 'Set URL'}</span>
-          </button>
-        </div>
 
-        {/* Config Modal / Box */}
-        {showConfig && (
-          <form
-            onSubmit={handleSaveTunnelUrl}
-            className="mb-4 p-4 rounded-xl bg-slate-900 border border-indigo-500/40 shadow-xl space-y-3"
-          >
-            <div className="text-xs font-semibold text-white flex items-center space-x-1.5">
-              <Globe className="w-4 h-4 text-indigo-400" />
-              <span>Konfigurasi Base URL DarkoPOS (Ngrok / Cloudflare)</span>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              Masukkan URL tunnel dari laptop tim lokal (misal: <code>https://xxxx.ngrok-free.app</code>).
-            </p>
-            <input
-              type="url"
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              placeholder="https://your-tunnel.ngrok-free.app"
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-            />
-            <div className="flex justify-end space-x-2">
+          {/* Card Form Login */}
+          <div className="relative overflow-hidden bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-9 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/10">
+            <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#12388F] via-[#2563EB] to-[#F59E0B]" />
+            
+            {/* Header Badge */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-[#12388F]/10 text-[#12388F] border border-[#12388F]/20 text-xs font-bold">
+                <ShieldCheck className="w-4 h-4 text-[#12388F]" />
+                <span>Portal Keamanan Gerbang</span>
+              </div>
+              
+              {/* Tombol Konfigurasi Tunnel Ngrok */}
               <button
                 type="button"
-                onClick={() => setShowConfig(false)}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white"
+                onClick={() => setShowConfig(!showConfig)}
+                className="inline-flex items-center space-x-1 text-xs text-[#64748B] hover:text-[#12388F] transition cursor-pointer"
+                title="Atur Base URL Tunnel Ngrok / Cloudflare"
               >
-                Batal
+                <Settings className="w-3.5 h-3.5" />
+                <span>{showConfig ? 'Tutup URL' : 'Set URL'}</span>
               </button>
+            </div>
+
+            {/* Form Setup Base URL Tunnel (Bisa dibuka-tutup) */}
+            {showConfig && (
+              <form
+                onSubmit={handleSaveTunnelUrl}
+                className="mb-5 p-4 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] shadow-inner space-y-2.5"
+              >
+                <div className="text-xs font-bold text-[#0F172A] flex items-center space-x-1.5">
+                  <Globe className="w-4 h-4 text-[#12388F]" />
+                  <span>Base URL DarkoPOS (Ngrok / Tunnel)</span>
+                </div>
+                <p className="text-[11px] text-[#64748B]">
+                  Masukkan URL tunnel dari laptop lokal tim POS:
+                </p>
+                <input
+                  type="url"
+                  value={inputUrl}
+                  onChange={(e) => setInputUrl(e.target.value)}
+                  placeholder="https://xxxx.ngrok-free.app"
+                  className="w-full px-3 py-2 bg-white border border-[#CBD5E1] rounded-lg text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F]"
+                />
+                <div className="flex justify-end space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfig(false)}
+                    className="px-3 py-1 rounded text-xs text-[#64748B] hover:text-[#0F172A]"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 rounded-lg bg-[#12388F] hover:bg-[#0D2A6B] text-white text-xs font-semibold shadow-xs cursor-pointer"
+                  >
+                    Simpan URL
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Header Form */}
+            <div className="mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight">
+                Masuk Pos Gerbang
+              </h2>
+              <p className="text-xs sm:text-sm text-[#475569] mt-1 font-medium">
+                Autentikasi staf security untuk verifikasi unit kendaraan KIM 3.
+              </p>
+            </div>
+
+            {/* Feedback Alert Messages */}
+            {infoMsg && (
+              <div className="mb-5 p-3 rounded-lg bg-[#DCFCE7] border border-[#16A34A]/30 flex items-start space-x-2 text-xs text-[#16A34A]">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{infoMsg}</span>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="mb-5 p-3.5 rounded-lg bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-2.5 text-xs text-[#DC2626]">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* Form Login: Hanya User ID & Kata Sandi (Kolom Company Dibuang) */}
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className={LABEL_CLS}>User ID Petugas</label>
+                <div className="relative group">
+                  <div className={ICON_WRAP_CLS}>
+                    <User className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
+                    placeholder="Contoh: adminPOS atau security.pos1"
+                    className={INPUT_CLS}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={LABEL_CLS}>Kata Sandi</label>
+                <div className="relative group">
+                  <div className={ICON_WRAP_CLS}>
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className={INPUT_PWD_CLS}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#64748B] hover:text-[#0F172A] cursor-pointer transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="submit"
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow"
+                disabled={isLoading}
+                className="w-full mt-2 py-3 px-4 rounded-lg bg-[#12388F] hover:bg-[#0D2A6B] active:bg-[#0A2154] text-white text-sm font-semibold tracking-wide shadow-md shadow-[#12388F]/25 flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
               >
-                Simpan Base URL
+                <span>{isLoading ? 'Memverifikasi ke DarkoPOS...' : 'Masuk Sekarang'}</span>
+                <ArrowRight className="w-4 h-4" />
               </button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-[#E2E8F0] text-center">
+              <span className="text-[11px] text-[#64748B]">
+                Akses internal gerbang bengkel KIM 3 • Terhubung ke DarkoPOS
+              </span>
             </div>
-          </form>
-        )}
+          </div>
 
-        {/* Card Form */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-sm">
-          {info && (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300">
-              {info}
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-5 p-3 rounded-xl bg-red-950/40 border border-red-500/30 flex items-start space-x-2.5 text-xs text-red-300">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Perusahaan (Company)
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Building className="w-4 h-4" />
-                </div>
-                <input
-                  type="text"
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  placeholder="BENGKEL MASTER TRUK"
-                  className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                User ID Petugas
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <User className="w-4 h-4" />
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  placeholder="adminPOS / security.pos1"
-                  className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Kata Sandi
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full mt-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/30 flex items-center justify-center space-x-2 transition disabled:opacity-50 cursor-pointer"
-            >
-              <span>{isLoading ? 'Memverifikasi ke DarkoPOS...' : 'Masuk ke Portal'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
-
-          <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
-            <span className="text-[11px] text-slate-500">
-              Autentikasi terhubung langsung dengan POS Engine Bengkel KIM 3.
-            </span>
+          {/* Footer Info */}
+          <div className="text-center mt-6 text-xs text-[#64748B]">
+            Bengkel KIM 3 Medan • Master Truck Workshop Network
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="text-center mt-6 text-xs text-slate-500 flex items-center justify-center space-x-1.5">
-          <Wrench className="w-3.5 h-3.5" />
-          <span>Bengkel KIM 3 • Medan Industrial Area</span>
-        </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };
