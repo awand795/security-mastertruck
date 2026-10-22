@@ -10,7 +10,9 @@ import {
   CheckCircle2, 
   AlertTriangle,
   Send,
-  Printer
+  Printer,
+  Info,
+  Truck
 } from 'lucide-react';
 import { securityApi } from '../api/client';
 import { BookingConfirmedItem } from '../types';
@@ -27,13 +29,15 @@ const INITIAL_PHOTOS: PhotoSlot[] = [
 export const CheckInView: React.FC = () => {
   const currentUser = useSecurityStore((state) => state.user);
 
-  // Form states
-  const [jenisKedatangan, setJenisKedatangan] = useState<'BOOKING' | 'WALK_IN'>('BOOKING');
+  // Unified Plate Input
   const [plateInput, setPlateInput] = useState('');
-  const [confirmedBookings, setConfirmedBookings] = useState<BookingConfirmedItem[]>([]);
-  const [selectedBooking, setSelectedBooking] = useState<BookingConfirmedItem | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Lookup results
+  const [matchedBookings, setMatchedBookings] = useState<BookingConfirmedItem[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<BookingConfirmedItem | null>(null);
+  const [matchedUnit, setMatchedUnit] = useState<any | null>(null);
 
   // Driver and visit details
   const [namaPengemudi, setNamaPengemudi] = useState('');
@@ -53,59 +57,91 @@ export const CheckInView: React.FC = () => {
     waktu_masuk: string;
     nama_driver: string;
     jenis: string;
+    booking_id?: number | null;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Search bookings on plate input change
+  // Real-time lookup plate whenever plateInput changes
   useEffect(() => {
-    if (jenisKedatangan !== 'BOOKING') return;
+    const cleanPlate = plateInput.trim().toUpperCase().replace(/\s+/g, '');
+    if (cleanPlate.length < 3) {
+      setMatchedBookings([]);
+      setSelectedBooking(null);
+      setMatchedUnit(null);
+      return;
+    }
 
     const timer = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const data = await securityApi.searchConfirmedBookings(plateInput.trim());
-        setConfirmedBookings(data);
+        // 1. Search booking
+        const bookings = await securityApi.searchConfirmedBookings(cleanPlate);
+        setMatchedBookings(bookings);
+
+        // Auto-match if exact plate matches
+        const exactBooking = bookings.find(
+          (b) => b.nomor_polisi.replace(/\s+/g, '').toUpperCase() === cleanPlate
+        );
+        if (exactBooking) {
+          setSelectedBooking(exactBooking);
+          if (!namaPengemudi) setNamaPengemudi(exactBooking.nama_driver || '');
+          if (!noTelpPengemudi) setNoTelpPengemudi(exactBooking.no_telepon_driver || '');
+          if (!keluhan) setKeluhan(exactBooking.catatan || 'Service Berkala');
+        } else {
+          setSelectedBooking(null);
+        }
+
+        // 2. Search tbl_member_unit (armada terdaftar)
+        const units = await securityApi.lookupUnitMember(cleanPlate);
+        if (units.length > 0) {
+          const exactUnit = units[0];
+          setMatchedUnit(exactUnit);
+          if (!namaPengemudi && exactUnit.nama_pengguna_fleet) {
+            setNamaPengemudi(exactUnit.nama_pic || exactUnit.nama_pengguna_fleet);
+          }
+          if (!noTelpPengemudi && exactUnit.no_telepon) {
+            setNoTelpPengemudi(exactUnit.no_telepon);
+          }
+        } else {
+          setMatchedUnit(null);
+        }
       } catch (err) {
-        console.error('Error fetching bookings:', err);
+        console.error('Error lookup plate:', err);
       } finally {
         setIsSearching(false);
       }
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [plateInput, jenisKedatangan]);
+  }, [plateInput]);
 
   const handleSelectBooking = (item: BookingConfirmedItem) => {
     setSelectedBooking(item);
     setPlateInput(item.nomor_polisi);
-    setNamaPengemudi(item.nama_driver || '');
+    setNamaPengemudi(item.nama_driver || item.customer_name || '');
     setNoTelpPengemudi(item.no_telepon_driver || '');
-    setKeluhan(item.catatan || 'Service Berkala');
+    setKeluhan(item.catatan || item.keluhan || 'Service Berkala');
     setShowSuggestions(false);
   };
 
-  const handleModeChange = (mode: 'BOOKING' | 'WALK_IN') => {
-    setJenisKedatangan(mode);
-    setSelectedBooking(null);
-    setPlateInput('');
-    setNamaPengemudi('');
-    setNoTelpPengemudi('');
-    setKeluhan('');
-    setCatatanMasuk('');
-    setPhotos(INITIAL_PHOTOS);
-  };
-
-  const isBookingValid = Boolean(
+  // Status klasifikasi kedatangan
+  const hasBooking = Boolean(selectedBooking);
+  const isBookingConfirmed = Boolean(
     selectedBooking && 
-    selectedBooking.nomor_polisi.toLowerCase() === plateInput.trim().toLowerCase() &&
-    (selectedBooking.status_booking.toLowerCase() === 'confirmed' || selectedBooking.status_booking.toLowerCase() === 'approved')
+    (selectedBooking.status_booking.toLowerCase().includes('confirm') || 
+     selectedBooking.status_booking.toLowerCase().includes('approve') ||
+     (selectedBooking as any).can_checkin === true)
   );
+  const isBookingUnconfirmed = Boolean(hasBooking && !isBookingConfirmed);
+  const isWalkInWithUnit = Boolean(!hasBooking && matchedUnit);
+  const isWalkInPure = Boolean(!hasBooking && !matchedUnit);
 
-  const isFormValid = () => {
-    if (jenisKedatangan === 'BOOKING') {
-      return isBookingValid && namaPengemudi.trim() !== '';
-    }
-    return plateInput.trim().length >= 3 && namaPengemudi.trim() !== '';
+  // Status apakah tombol check in bisa ditekan
+  const canSubmit = () => {
+    if (isBookingUnconfirmed) return false; // DILARANG jika ada booking tapi belum confirmed
+    if (plateInput.trim().length < 3) return false;
+    if (namaPengemudi.trim() === '') return false;
+    return true;
   };
 
   const generateTicketNumber = () => {
@@ -119,13 +155,14 @@ export const CheckInView: React.FC = () => {
 
   const handleSubmitCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid()) return;
+    if (!canSubmit()) return;
 
     setErrorMsg(null);
     setIsSubmitting(true);
 
     try {
       const generatedTiket = generateTicketNumber();
+      const jenisKedatangan: 'BOOKING' | 'WALK_IN' = hasBooking ? 'BOOKING' : 'WALK_IN';
       const payload = {
         nomor_tiket: generatedTiket,
         booking_id: selectedBooking ? selectedBooking.booking_id : null,
@@ -134,7 +171,7 @@ export const CheckInView: React.FC = () => {
         nama_pengemudi: namaPengemudi.trim(),
         no_telepon_pengemudi: noTelpPengemudi.trim(),
         tipe_kunjungan: tipeKunjungan,
-        keluhan: keluhan.trim() || 'Pengecekan umum',
+        keluhan: keluhan.trim() || 'Pengecekan umum armada',
         petugas_security_masuk: currentUser?.nama || 'Pos Security KIM 3',
         catatan_masuk: catatanMasuk.trim() || undefined,
       };
@@ -165,10 +202,11 @@ export const CheckInView: React.FC = () => {
         waktu_masuk: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
         nama_driver: payload.nama_pengemudi,
         jenis: payload.jenis_kedatangan,
+        booking_id: payload.booking_id,
       });
     } catch (err: any) {
       console.error('Check in error:', err);
-      setErrorMsg(err.response?.data?.message || 'Gagal menyimpan check-in. Periksa jaringan koneksi pos gerbang.');
+      setErrorMsg(err.response?.data?.message || 'Gagal menyimpan check-in. Periksa jaringan pos gerbang.');
     } finally {
       setIsSubmitting(false);
     }
@@ -176,7 +214,14 @@ export const CheckInView: React.FC = () => {
 
   const handleReset = () => {
     setSuccessTicket(null);
-    handleModeChange(jenisKedatangan);
+    setPlateInput('');
+    setNamaPengemudi('');
+    setNoTelpPengemudi('');
+    setKeluhan('');
+    setCatatanMasuk('');
+    setSelectedBooking(null);
+    setMatchedUnit(null);
+    setPhotos(INITIAL_PHOTOS);
   };
 
   if (successTicket) {
@@ -202,12 +247,18 @@ export const CheckInView: React.FC = () => {
               <span className="text-sm font-bold text-[#0F172A] tracking-wider font-mono">{successTicket.no_polisi}</span>
             </div>
             <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Jenis Kedatangan</span>
+              <span className="text-xs font-bold text-[#12388F]">
+                {successTicket.jenis === 'BOOKING' ? `BOOKING (ID #${successTicket.booking_id})` : 'WALK-IN'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
               <span className="text-xs text-[#64748B]">Pengemudi / Driver</span>
               <span className="text-xs font-semibold text-[#0F172A]">{successTicket.nama_driver}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-xs text-[#64748B]">Waktu Kedatangan</span>
-              <span className="text-xs font-semibold text-[#16A34A]">{successTicket.waktu_masuk}</span>
+              <span className="text-xs font-bold text-[#16A34A]">{successTicket.waktu_masuk}</span>
             </div>
           </div>
 
@@ -234,44 +285,16 @@ export const CheckInView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
-      {/* Top Banner Card */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 rounded-xl bg-[#12388F]/10 text-[#12388F]">
-              <LogIn className="w-5 h-5" />
-            </div>
-            <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Pemeriksaan Kendaraan Masuk (Check In)</h2>
-          </div>
-          <p className="text-xs text-[#64748B] mt-1">
-            Catat kedatangan armada berdasarkan jadwal booking pelanggan atau kedatangan langsung (walk-in).
-          </p>
+      {/* Top Banner Header */}
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs flex items-center space-x-3.5">
+        <div className="p-3 rounded-xl bg-[#12388F]/10 text-[#12388F]">
+          <LogIn className="w-6 h-6" />
         </div>
-
-        {/* Mode Switcher */}
-        <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl border border-[#CBD5E1]/70 shrink-0">
-          <button
-            type="button"
-            onClick={() => handleModeChange('BOOKING')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              jenisKedatangan === 'BOOKING'
-                ? 'bg-white text-[#12388F] shadow-xs'
-                : 'text-[#64748B] hover:text-[#0F172A]'
-            }`}
-          >
-            Booking Jadwal
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeChange('WALK_IN')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
-              jenisKedatangan === 'WALK_IN'
-                ? 'bg-[#12388F] text-white shadow-xs'
-                : 'text-[#64748B] hover:text-[#0F172A]'
-            }`}
-          >
-            Walk-In / Darurat
-          </button>
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Pemeriksaan Kendaraan Masuk (Check In)</h2>
+          <p className="text-xs text-[#64748B] mt-0.5">
+            Sistem otomatis mendeteksi apakah kendaraan memiliki jadwal Booking, unit Member terdaftar, atau Walk-In.
+          </p>
         </div>
       </div>
 
@@ -285,10 +308,11 @@ export const CheckInView: React.FC = () => {
       {/* Main Check-In Form */}
       <form onSubmit={handleSubmitCheckIn} className="space-y-5">
         <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-7 shadow-xs space-y-5">
-          {/* Plat Nomor Polisi (Autocomplete with Live Search) */}
+          
+          {/* Input Nomor Polisi Universal */}
           <div className="relative">
             <label className="block text-xs font-bold text-[#0F172A] mb-1.5">
-              Nomor Polisi Kendaraan {jenisKedatangan === 'BOOKING' && <span className="text-[#12388F] font-semibold">(Live Search Booking)</span>}
+              Nomor Polisi Kendaraan Masuk
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
@@ -301,94 +325,93 @@ export const CheckInView: React.FC = () => {
                 onChange={(e) => {
                   setPlateInput(e.target.value.toUpperCase());
                   setShowSuggestions(true);
-                  if (selectedBooking && selectedBooking.nomor_polisi !== e.target.value.toUpperCase()) {
-                    setSelectedBooking(null);
-                  }
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Contoh: BK 9393 ER"
+                placeholder="Ketik plat nomor... Contoh: BK 9393 ER"
                 className="w-full pl-10 pr-24 py-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-base font-mono font-bold tracking-wider text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F] focus:ring-2 focus:ring-[#12388F]/20 uppercase transition"
               />
               {isSearching && (
                 <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-[#64748B]">
-                  Mencari...
+                  Memeriksa data...
                 </div>
               )}
             </div>
 
-            {/* Autocomplete Dropdown for Booking */}
-            {jenisKedatangan === 'BOOKING' && showSuggestions && confirmedBookings.length > 0 && !selectedBooking && (
+            {/* Suggestions list if multiple bookings match query */}
+            {showSuggestions && matchedBookings.length > 0 && !selectedBooking && (
               <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#CBD5E1] rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
                 <div className="p-2.5 text-[11px] font-bold text-[#64748B] border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                  Jadwal Booking Terkonfirmasi:
+                  Pilih dari Antrean Booking:
                 </div>
-                {confirmedBookings.map((b) => {
-                  const isConfirmed = b.status_booking.toLowerCase() === 'confirmed' || b.status_booking.toLowerCase() === 'approved';
-                  return (
-                    <button
-                      key={b.booking_id}
-                      type="button"
-                      onClick={() => handleSelectBooking(b)}
-                      className="w-full text-left p-3 hover:bg-[#F1F5F9] border-b border-[#F1F5F9] flex items-center justify-between transition cursor-pointer"
+                {matchedBookings.map((b) => (
+                  <button
+                    key={b.booking_id}
+                    type="button"
+                    onClick={() => handleSelectBooking(b)}
+                    className="w-full text-left p-3 hover:bg-[#F1F5F9] border-b border-[#F1F5F9] flex items-center justify-between transition cursor-pointer"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono font-bold text-[#0F172A] text-sm">{b.nomor_polisi}</span>
+                        <span className="text-xs text-[#64748B]">• {b.customer_name || 'Pelanggan'}</span>
+                      </div>
+                      <div className="text-xs text-[#64748B] mt-0.5">
+                        Jadwal: {b.tanggal_booking} ({b.jam_booking}) • Layanan: {b.jenis_layanan}
+                      </div>
+                    </div>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        b.status_booking.toLowerCase().includes('confirm')
+                          ? 'bg-[#DCFCE7] text-[#16A34A] border border-[#16A34A]/30'
+                          : 'bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/30'
+                      }`}
                     >
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono font-bold text-[#0F172A] text-sm">{b.nomor_polisi}</span>
-                          <span className="text-xs text-[#64748B]">• {b.customer_name || b.armada_nama || 'Pelanggan'}</span>
-                        </div>
-                        <div className="text-xs text-[#64748B] mt-0.5">
-                          Driver: {b.nama_driver} ({b.no_telepon_driver})
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            isConfirmed
-                              ? 'bg-[#DCFCE7] text-[#16A34A] border border-[#16A34A]/30'
-                              : 'bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/30'
-                          }`}
-                        >
-                          {b.status_booking}
-                        </span>
-                        <div className="text-[11px] text-[#64748B] mt-1">
-                          {b.tanggal_booking} {b.jam_booking}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                      {b.status_booking}
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
 
-            {/* Validation Feedback */}
-            {jenisKedatangan === 'BOOKING' && plateInput.trim().length >= 3 && (
-              <div className="mt-2.5">
-                {selectedBooking ? (
-                  isBookingValid ? (
-                    <div className="p-3 rounded-xl bg-[#DCFCE7] border border-[#16A34A]/30 flex items-center space-x-2.5 text-xs text-[#16A34A]">
-                      <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      <div>
-                        <span className="font-bold">Booking Terkonfirmasi:</span> Unit dijadwalkan pada {selectedBooking.tanggal_booking} ({selectedBooking.jam_booking}). Data siap di-check in.
-                      </div>
+            {/* Status Peringatan Cerdas (Satu Halaman): Booking vs Walk-in Member vs Walk-in Baru */}
+            {plateInput.trim().length >= 3 && (
+              <div className="mt-3">
+                {isBookingConfirmed && selectedBooking && (
+                  <div className="p-3.5 rounded-xl bg-[#DCFCE7] border border-[#16A34A]/30 flex items-start space-x-2.5 text-xs text-[#16A34A]">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-sm block">Booking Terkonfirmasi (Booking ID #{selectedBooking.booking_id})</span>
+                      <span>Jadwal: {selectedBooking.tanggal_booking} ({selectedBooking.jam_booking}) • Pelanggan: {selectedBooking.customer_name}. Siap check in.</span>
                     </div>
-                  ) : (
-                    <div className="p-3 rounded-xl bg-[#FEF3C7] border border-[#D97706]/30 flex items-center space-x-2.5 text-xs text-[#D97706]">
-                      <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <div>
-                        <span className="font-bold">Booking Belum Dikonfirmasi:</span> Status saat ini adalah <strong className="uppercase">{selectedBooking.status_booking}</strong>. Silakan hubungi Admin Bengkel untuk konfirmasi terlebih dahulu sebelum kendaraan diizinkan masuk.
-                      </div>
+                  </div>
+                )}
+
+                {isBookingUnconfirmed && selectedBooking && (
+                  <div className="p-3.5 rounded-xl bg-[#FEF3C7] border border-[#D97706]/40 flex items-start space-x-2.5 text-xs text-[#D97706]">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-sm block">Booking Belum Dikonfirmasi ({selectedBooking.status_booking})</span>
+                      <span>Status booking untuk plat ini belum confirmed. <strong>Silakan konfirmasi ke customer / Admin Bengkel terlebih dahulu sebelum mengizinkan kendaraan masuk.</strong> Tombol check in dinonaktifkan.</span>
                     </div>
-                  )
-                ) : (
-                  <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] text-xs text-[#64748B] flex items-center justify-between">
-                    <span>Belum memilih dari jadwal booking confirmed.</span>
-                    <button
-                      type="button"
-                      onClick={() => handleModeChange('WALK_IN')}
-                      className="text-[#12388F] hover:underline font-bold"
-                    >
-                      Ganti ke Walk-In?
-                    </button>
+                  </div>
+                )}
+
+                {isWalkInWithUnit && matchedUnit && (
+                  <div className="p-3.5 rounded-xl bg-[#EFF6FF] border border-[#3B82F6]/30 flex items-start space-x-2.5 text-xs text-[#1E40AF]">
+                    <Truck className="w-4 h-4 shrink-0 mt-0.5 text-[#3B82F6]" />
+                    <div>
+                      <span className="font-bold text-sm block">Kedatangan Walk-In (Armada Terdaftar di Member Unit)</span>
+                      <span>Unit armada terdaftar milik <strong>{matchedUnit.nama_pengguna_fleet || matchedUnit.nama_perusahaan || 'Member'}</strong> ({matchedUnit.merk} {matchedUnit.model}). Data otomatis diisi ke form.</span>
+                    </div>
+                  </div>
+                )}
+
+                {isWalkInPure && (
+                  <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] flex items-center space-x-2.5 text-xs text-[#64748B]">
+                    <Info className="w-4 h-4 shrink-0 text-[#12388F]" />
+                    <div>
+                      <span className="font-bold text-[#0F172A]">Kedatangan Walk-In Biasa:</span> Tidak ditemukan riwayat booking aktif atau data member unit. Silakan lengkapi nama driver dan keluhan.
+                    </div>
                   </div>
                 )}
               </div>
@@ -399,7 +422,7 @@ export const CheckInView: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
-                Nama Pengemudi / Driver
+                Nama Pengemudi / Driver <span className="text-[#DC2626]">*</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
@@ -410,7 +433,7 @@ export const CheckInView: React.FC = () => {
                   required
                   value={namaPengemudi}
                   onChange={(e) => setNamaPengemudi(e.target.value)}
-                  placeholder="Nama pengemudi"
+                  placeholder="Nama lengkap pengemudi"
                   className="w-full pl-10 pr-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
                 />
               </div>
@@ -447,13 +470,14 @@ export const CheckInView: React.FC = () => {
                 <option value="Perbaikan Ringan">Perbaikan Ringan</option>
                 <option value="Perbaikan Berat / Overhaul">Perbaikan Berat / Overhaul</option>
                 <option value="Inspeksi / Pengecekan">Inspeksi / Pengecekan</option>
-                <option value="Lainnya">Lainnya</option>
+                <option value="Beli Sparepart">Beli Sparepart</option>
+                <option value="Tamu / Lainnya">Tamu / Lainnya</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
-                Keluhan Driver / Rencana Perbaikan
+                Keluhan Driver / Rencana Servis
               </label>
               <input
                 type="text"
@@ -473,7 +497,7 @@ export const CheckInView: React.FC = () => {
               rows={2}
               value={catatanMasuk}
               onChange={(e) => setCatatanMasuk(e.target.value)}
-              placeholder="Catatan barang bawaan, kondisi bodi atau petunjuk khusus pos..."
+              placeholder="Catatan barang bawaan armada, kondisi fisik bodi atau petunjuk pos..."
               className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] focus:outline-none focus:border-[#12388F] resize-none"
             />
           </div>
@@ -492,9 +516,9 @@ export const CheckInView: React.FC = () => {
         <div className="flex items-center justify-end space-x-4">
           <button
             type="submit"
-            disabled={!isFormValid() || isSubmitting}
+            disabled={!canSubmit() || isSubmitting}
             className={`px-8 py-3.5 rounded-xl font-bold text-sm flex items-center space-x-2 transition ${
-              isFormValid() && !isSubmitting
+              canSubmit() && !isSubmitting
                 ? 'bg-[#12388F] hover:bg-[#0D2A6B] text-white shadow-lg shadow-[#12388F]/25 cursor-pointer'
                 : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed border border-[#CBD5E1]'
             }`}
@@ -503,8 +527,8 @@ export const CheckInView: React.FC = () => {
             <span>
               {isSubmitting
                 ? 'Memproses Check In...'
-                : jenisKedatangan === 'BOOKING' && !isBookingValid
-                ? 'Pilih Booking Confirmed Dahulu'
+                : isBookingUnconfirmed
+                ? 'Booking Belum Confirmed (Silakan Konfirmasi ke Customer)'
                 : 'Terbitkan Tiket & Check In'}
             </span>
           </button>

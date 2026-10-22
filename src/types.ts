@@ -29,16 +29,25 @@ export interface MsFoto {
 
 export interface BookingConfirmedItem {
   booking_id: number;
-  nomor_booking: string;
+  nomor_booking?: string;
+  no_booking?: string;
   nomor_polisi: string;
+  no_polisi?: string;
   tanggal_booking: string;
   jam_booking: string;
-  nama_driver: string;
-  no_telepon_driver: string;
+  nama_driver?: string;
+  no_telepon_driver?: string;
   status_booking: string;
+  status?: string;
+  is_confirmed?: boolean;
+  can_checkin?: boolean;
   catatan?: string;
+  keluhan?: string;
+  jenis_layanan?: string;
   armada_nama?: string;
   customer_name?: string;
+  customer_nama?: string;
+  customer_telepon?: string;
 }
 
 export interface ActiveInsideVehicle {

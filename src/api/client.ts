@@ -13,12 +13,24 @@ export const apiClient = axios.create({
 });
 
 export const securityApi = {
-  // 1. Get confirmed bookings (matching search query or all today)
+  // 1. Get bookings (all statuses for checking confirmation)
   searchConfirmedBookings: async (query?: string): Promise<BookingConfirmedItem[]> => {
     const res = await apiClient.get('/kim3/security/booking-confirmed', {
       params: { q: query || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
+  },
+
+  // 1b. Lookup unit member from tbl_member_unit (/kim3/kendaraan-lookup)
+  lookupUnitMember: async (nopol: string) => {
+    try {
+      const res = await apiClient.get('/kim3/kendaraan-lookup', {
+        params: { nopol }
+      });
+      return Array.isArray(res.data) ? res.data : [];
+    } catch {
+      return [];
+    }
   },
 
   // 2. Check in vehicle (insert into sch_pos.kunjungan_masuk)
