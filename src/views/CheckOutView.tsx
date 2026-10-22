@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Send,
   Printer,
-  ShieldCheck,
   FileCheck
 } from 'lucide-react';
 import { securityApi } from '../api/client';
@@ -49,7 +48,6 @@ export const CheckOutView: React.FC = () => {
     petugas_keluar: string;
   } | null>(null);
 
-  // Fetch active vehicles letter-by-letter
   useEffect(() => {
     const timer = setTimeout(async () => {
       try {
@@ -72,7 +70,6 @@ export const CheckOutView: React.FC = () => {
     setShowSuggestions(false);
   };
 
-  // Determine if plate matches an active inside vehicle
   const isVehicleInside = Boolean(
     selectedVehicle && 
     selectedVehicle.no_polisi.toLowerCase() === plateInput.trim().toLowerCase()
@@ -136,51 +133,51 @@ export const CheckOutView: React.FC = () => {
 
   if (successMemo) {
     return (
-      <div className="max-w-xl mx-auto py-8">
-        <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 sm:p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-4">
+      <div className="max-w-xl mx-auto py-4">
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-8 text-center shadow-lg relative overflow-hidden">
+          <div className="w-16 h-16 rounded-full bg-[#DCFCE7] border border-[#16A34A]/30 text-[#16A34A] flex items-center justify-center mx-auto mb-4">
             <FileCheck className="w-8 h-8" />
           </div>
 
-          <h2 className="text-xl font-bold text-white mb-1">Gate Pass / Memo Keluar Diterbitkan</h2>
-          <p className="text-xs text-slate-400 mb-6">
+          <h2 className="text-xl font-bold text-[#0F172A] mb-1">Gate Pass / Memo Keluar Diterbitkan</h2>
+          <p className="text-xs text-[#64748B] mb-6">
             Kendaraan {successMemo.no_polisi} telah diizinkan keluar dan tercatat resmi di sistem keamanan bengkel.
           </p>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 mb-6 text-left space-y-3">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-              <span className="text-xs text-slate-400">Nomor Gate Pass / Tiket</span>
-              <span className="text-sm font-mono font-bold text-emerald-400">{successMemo.nomor_tiket}</span>
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5 mb-6 text-left space-y-3">
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Nomor Gate Pass / Tiket</span>
+              <span className="text-sm font-mono font-bold text-[#16A34A]">{successMemo.nomor_tiket}</span>
             </div>
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-              <span className="text-xs text-slate-400">Plat Kendaraan</span>
-              <span className="text-sm font-bold text-white tracking-wider font-mono">{successMemo.no_polisi}</span>
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Plat Kendaraan</span>
+              <span className="text-sm font-bold text-[#0F172A] tracking-wider font-mono">{successMemo.no_polisi}</span>
             </div>
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-              <span className="text-xs text-slate-400">Pengemudi</span>
-              <span className="text-xs font-semibold text-slate-200">{successMemo.nama_pengemudi}</span>
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Pengemudi</span>
+              <span className="text-xs font-semibold text-[#0F172A]">{successMemo.nama_pengemudi}</span>
             </div>
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-              <span className="text-xs text-slate-400">Waktu Masuk</span>
-              <span className="text-xs text-slate-300">{successMemo.waktu_masuk}</span>
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Waktu Masuk</span>
+              <span className="text-xs text-[#475569]">{successMemo.waktu_masuk}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400">Waktu Keluar Gerbang</span>
-              <span className="text-xs font-semibold text-emerald-400">{successMemo.waktu_keluar}</span>
+              <span className="text-xs text-[#64748B]">Waktu Keluar Gerbang</span>
+              <span className="text-xs font-bold text-[#16A34A]">{successMemo.waktu_keluar}</span>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
             <button
               onClick={() => window.print()}
-              className="flex-1 py-3 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold flex items-center justify-center space-x-2 transition"
+              className="flex-1 py-3 px-4 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#0F172A] text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-[#12388F]" />
               <span>Cetak Memo Keluar</span>
             </button>
             <button
               onClick={handleReset}
-              className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center justify-center space-x-2 transition shadow-lg shadow-emerald-600/30"
+              className="flex-1 py-3 px-4 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold flex items-center justify-center space-x-2 transition shadow-md shadow-[#16A34A]/25 cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
               <span>Check Out Berikutnya</span>
@@ -192,39 +189,37 @@ export const CheckOutView: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-5">
       {/* Top Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <div className="flex items-center space-x-2.5">
-          <div className="p-2 rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
-            <LogOut className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-white">Pemeriksaan Kendaraan Keluar (Check Out)</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Validasi fisik unit yang berada di dalam area bengkel sebelum meninggalkan gerbang pos.
-            </p>
-          </div>
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs flex items-center space-x-3">
+        <div className="p-2.5 rounded-xl bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/20">
+          <LogOut className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Pemeriksaan Kendaraan Keluar (Check Out)</h2>
+          <p className="text-xs text-[#64748B] mt-0.5">
+            Validasi fisik unit armada yang sedang berada di dalam area bengkel sebelum meninggalkan gerbang pos.
+          </p>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/30 flex items-start space-x-3 text-xs text-red-300">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+        <div className="p-4 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-3 text-xs text-[#DC2626]">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Main Check-Out Form */}
-      <form onSubmit={handleSubmitCheckOut} className="space-y-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+      <form onSubmit={handleSubmitCheckOut} className="space-y-5">
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-7 shadow-xs space-y-5">
           {/* Plat Nomor Polisi Autocomplete against Active Inside */}
           <div className="relative">
-            <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-              Nomor Polisi Unit Keluar <span className="text-amber-400">(Unit di Dalam Bengkel)</span>
+            <label className="block text-xs font-bold text-[#0F172A] mb-1.5">
+              Nomor Polisi Unit Keluar <span className="text-[#D97706] font-semibold">(Hanya Unit yang di Dalam Bengkel)</span>
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
                 <Search className="w-4 h-4" />
               </div>
               <input
@@ -240,10 +235,10 @@ export const CheckOutView: React.FC = () => {
                 }}
                 onFocus={() => setShowSuggestions(true)}
                 placeholder="Ketik plat nomor... Contoh: BK 9393 ER"
-                className="w-full pl-10 pr-24 py-3 bg-slate-950 border border-slate-800 rounded-xl text-base font-mono font-bold tracking-wider text-white placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 uppercase transition"
+                className="w-full pl-10 pr-24 py-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-base font-mono font-bold tracking-wider text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#D97706] focus:ring-2 focus:ring-[#D97706]/20 uppercase transition"
               />
               {isSearching && (
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-slate-500">
+                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-[#64748B]">
                   Mencari...
                 </div>
               )}
@@ -251,8 +246,8 @@ export const CheckOutView: React.FC = () => {
 
             {/* Autocomplete Dropdown */}
             {showSuggestions && activeVehicles.length > 0 && !selectedVehicle && (
-              <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
-                <div className="p-2 text-[11px] font-semibold text-slate-400 border-b border-slate-800 bg-slate-950/60">
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#CBD5E1] rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                <div className="p-2.5 text-[11px] font-bold text-[#64748B] border-b border-[#E2E8F0] bg-[#F8FAFC]">
                   Armada yang Sedang di Dalam Bengkel:
                 </div>
                 {activeVehicles.map((v) => (
@@ -260,18 +255,18 @@ export const CheckOutView: React.FC = () => {
                     key={v.id}
                     type="button"
                     onClick={() => handleSelectVehicle(v)}
-                    className="w-full text-left p-3 hover:bg-slate-800/80 border-b border-slate-800/50 flex items-center justify-between transition"
+                    className="w-full text-left p-3 hover:bg-[#F1F5F9] border-b border-[#F1F5F9] flex items-center justify-between transition cursor-pointer"
                   >
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono font-bold text-white text-sm">{v.no_polisi}</span>
-                        <span className="text-xs text-slate-400">• Tiket: {v.nomor_tiket}</span>
+                        <span className="font-mono font-bold text-[#0F172A] text-sm">{v.no_polisi}</span>
+                        <span className="text-xs text-[#64748B]">• Tiket: {v.nomor_tiket}</span>
                       </div>
-                      <div className="text-xs text-slate-400 mt-0.5">
+                      <div className="text-xs text-[#64748B] mt-0.5">
                         Driver: {v.nama_pengemudi} • Masuk: {v.waktu_masuk}
                       </div>
                     </div>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-950 text-indigo-400 border border-indigo-500/30">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#12388F]/10 text-[#12388F] border border-[#12388F]/20">
                       {v.jenis_kedatangan}
                     </span>
                   </button>
@@ -283,17 +278,17 @@ export const CheckOutView: React.FC = () => {
             {plateInput.trim().length >= 2 && (
               <div className="mt-2.5">
                 {isVehicleInside && selectedVehicle ? (
-                  <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-center space-x-2.5 text-xs text-emerald-300">
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <div className="p-3 rounded-xl bg-[#DCFCE7] border border-[#16A34A]/30 flex items-center space-x-2.5 text-xs text-[#16A34A]">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
                     <div>
-                      <span className="font-semibold">Unit Ditemukan di Dalam:</span> Tiket {selectedVehicle.nomor_tiket} • Driver: {selectedVehicle.nama_pengemudi}. Siap diproses keluar.
+                      <span className="font-bold">Unit Ditemukan di Dalam:</span> Tiket {selectedVehicle.nomor_tiket} • Driver: {selectedVehicle.nama_pengemudi}. Siap divalidasi keluar.
                     </div>
                   </div>
                 ) : (
-                  <div className="p-3 rounded-xl bg-red-950/30 border border-red-500/40 flex items-center space-x-2.5 text-xs text-red-300">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                  <div className="p-3 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-center space-x-2.5 text-xs text-[#DC2626]">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
                     <div>
-                      <span className="font-semibold">Kendaraan Tidak Ada di Dalam Bengkel:</span> Plat nomor tidak terdaftar pada antrean aktif masuk atau sudah pernah di-check out. Tombol check out dinonaktifkan.
+                      <span className="font-bold">Kendaraan Tidak Ada di Dalam Bengkel:</span> Plat nomor tidak terdaftar pada antrean aktif masuk atau sudah pernah di-check out. Tombol check out dinonaktifkan.
                     </div>
                   </div>
                 )}
@@ -303,24 +298,24 @@ export const CheckOutView: React.FC = () => {
 
           {/* Details of selected vehicle */}
           {selectedVehicle && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-950 border border-slate-800 rounded-xl text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs">
               <div>
-                <span className="text-slate-500 block">Nama Pengemudi</span>
-                <span className="text-slate-200 font-semibold">{selectedVehicle.nama_pengemudi}</span>
+                <span className="text-[#64748B] block font-medium">Nama Pengemudi</span>
+                <span className="text-[#0F172A] font-bold">{selectedVehicle.nama_pengemudi}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Tipe Kunjungan</span>
-                <span className="text-slate-200 font-semibold">{selectedVehicle.tipe_kunjungan}</span>
+                <span className="text-[#64748B] block font-medium">Tipe Kunjungan</span>
+                <span className="text-[#0F172A] font-bold">{selectedVehicle.tipe_kunjungan}</span>
               </div>
               <div>
-                <span className="text-slate-500 block">Waktu Masuk Awal</span>
-                <span className="text-slate-200 font-semibold">{selectedVehicle.waktu_masuk}</span>
+                <span className="text-[#64748B] block font-medium">Waktu Masuk Awal</span>
+                <span className="text-[#0F172A] font-bold">{selectedVehicle.waktu_masuk}</span>
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
               Catatan Pemeriksaan Keluar (Opsional)
             </label>
             <textarea
@@ -328,12 +323,12 @@ export const CheckOutView: React.FC = () => {
               value={catatanKeluar}
               onChange={(e) => setCatatanKeluar(e.target.value)}
               placeholder="Kelengkapan surat kendaraan, kondisi fisik saat meninggalkan bengkel..."
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500 resize-none"
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] focus:outline-none focus:border-[#D97706] resize-none"
             />
           </div>
 
           {/* Multi Camera Section for Exit */}
-          <div className="pt-4 border-t border-slate-800">
+          <div className="pt-4 border-t border-[#E2E8F0]">
             <MultiCameraSection
               photos={photos}
               onChange={setPhotos}
@@ -347,10 +342,10 @@ export const CheckOutView: React.FC = () => {
           <button
             type="submit"
             disabled={!isVehicleInside || isSubmitting}
-            className={`px-8 py-3.5 rounded-xl font-semibold text-sm flex items-center space-x-2 transition ${
+            className={`px-8 py-3.5 rounded-xl font-bold text-sm flex items-center space-x-2 transition ${
               isVehicleInside && !isSubmitting
-                ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-xl shadow-amber-600/30 cursor-pointer'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
+                ? 'bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-[#D97706]/25 cursor-pointer'
+                : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed border border-[#CBD5E1]'
             }`}
           >
             <LogOut className="w-4 h-4" />

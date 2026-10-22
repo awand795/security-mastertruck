@@ -10,7 +10,6 @@ import {
   CheckCircle2, 
   AlertTriangle,
   Send,
-  Sparkles,
   Printer
 } from 'lucide-react';
 import { securityApi } from '../api/client';
@@ -76,7 +75,6 @@ export const CheckInView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [plateInput, jenisKedatangan]);
 
-  // Handle selecting a booking suggestion
   const handleSelectBooking = (item: BookingConfirmedItem) => {
     setSelectedBooking(item);
     setPlateInput(item.nomor_polisi);
@@ -86,7 +84,6 @@ export const CheckInView: React.FC = () => {
     setShowSuggestions(false);
   };
 
-  // Switch between BOOKING and WALK_IN
   const handleModeChange = (mode: 'BOOKING' | 'WALK_IN') => {
     setJenisKedatangan(mode);
     setSelectedBooking(null);
@@ -98,7 +95,6 @@ export const CheckInView: React.FC = () => {
     setPhotos(INITIAL_PHOTOS);
   };
 
-  // Determine if booking is confirmed or unconfirmed
   const isBookingValid = Boolean(
     selectedBooking && 
     selectedBooking.nomor_polisi.toLowerCase() === plateInput.trim().toLowerCase() &&
@@ -109,7 +105,6 @@ export const CheckInView: React.FC = () => {
     if (jenisKedatangan === 'BOOKING') {
       return isBookingValid && namaPengemudi.trim() !== '';
     }
-    // Walk-in validation
     return plateInput.trim().length >= 3 && namaPengemudi.trim() !== '';
   };
 
@@ -186,47 +181,47 @@ export const CheckInView: React.FC = () => {
 
   if (successTicket) {
     return (
-      <div className="max-w-xl mx-auto py-8">
-        <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-6 sm:p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto mb-4">
+      <div className="max-w-xl mx-auto py-4">
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-8 text-center shadow-lg relative overflow-hidden">
+          <div className="w-16 h-16 rounded-full bg-[#DCFCE7] border border-[#16A34A]/30 text-[#16A34A] flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8" />
           </div>
 
-          <h2 className="text-xl font-bold text-white mb-1">Check In Berhasil Diproses!</h2>
-          <p className="text-xs text-slate-400 mb-6">
+          <h2 className="text-xl font-bold text-[#0F172A] mb-1">Check In Berhasil Diproses!</h2>
+          <p className="text-xs text-[#64748B] mb-6">
             Kendaraan telah dicatat masuk ke Bengkel KIM 3 dan data siap diterima oleh Service Advisor (SA).
           </p>
 
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 mb-6 text-left space-y-3">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-              <span className="text-xs text-slate-400">Nomor Tiket Gerbang</span>
-              <span className="text-sm font-mono font-bold text-indigo-400">{successTicket.nomor_tiket}</span>
+          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5 mb-6 text-left space-y-3">
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Nomor Tiket Gerbang</span>
+              <span className="text-sm font-mono font-bold text-[#12388F]">{successTicket.nomor_tiket}</span>
             </div>
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-              <span className="text-xs text-slate-400">Plat Nomor Polisi</span>
-              <span className="text-sm font-bold text-white tracking-wider font-mono">{successTicket.no_polisi}</span>
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Plat Nomor Polisi</span>
+              <span className="text-sm font-bold text-[#0F172A] tracking-wider font-mono">{successTicket.no_polisi}</span>
             </div>
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-              <span className="text-xs text-slate-400">Pengemudi / Driver</span>
-              <span className="text-xs font-semibold text-slate-200">{successTicket.nama_driver}</span>
+            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
+              <span className="text-xs text-[#64748B]">Pengemudi / Driver</span>
+              <span className="text-xs font-semibold text-[#0F172A]">{successTicket.nama_driver}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-slate-400">Waktu Kedatangan</span>
-              <span className="text-xs font-semibold text-emerald-400">{successTicket.waktu_masuk}</span>
+              <span className="text-xs text-[#64748B]">Waktu Kedatangan</span>
+              <span className="text-xs font-semibold text-[#16A34A]">{successTicket.waktu_masuk}</span>
             </div>
           </div>
 
           <div className="flex items-center space-x-3">
             <button
               onClick={() => window.print()}
-              className="flex-1 py-3 px-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold flex items-center justify-center space-x-2 transition"
+              className="flex-1 py-3 px-4 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#0F172A] text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
+              <Printer className="w-4 h-4 text-[#12388F]" />
               <span>Cetak Tiket Masuk</span>
             </button>
             <button
               onClick={handleReset}
-              className="flex-1 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center justify-center space-x-2 transition shadow-lg shadow-indigo-600/30"
+              className="flex-1 py-3 px-4 rounded-xl bg-[#12388F] hover:bg-[#0D2A6B] text-white text-xs font-semibold flex items-center justify-center space-x-2 transition shadow-md shadow-[#12388F]/25 cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
               <span>Input Check In Baru</span>
@@ -238,67 +233,65 @@ export const CheckInView: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Top Banner / Navigation */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2.5">
-              <div className="p-2 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-                <LogIn className="w-5 h-5" />
-              </div>
-              <h2 className="text-lg font-bold text-white">Pemeriksaan Kendaraan Masuk (Check In)</h2>
+    <div className="max-w-4xl mx-auto space-y-5">
+      {/* Top Banner Card */}
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 rounded-xl bg-[#12388F]/10 text-[#12388F]">
+              <LogIn className="w-5 h-5" />
             </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Catat kedatangan armada berdasarkan jadwal booking ataupun kedatangan langsung (walk-in).
-            </p>
+            <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Pemeriksaan Kendaraan Masuk (Check In)</h2>
           </div>
+          <p className="text-xs text-[#64748B] mt-1">
+            Catat kedatangan armada berdasarkan jadwal booking pelanggan atau kedatangan langsung (walk-in).
+          </p>
+        </div>
 
-          {/* Mode Switcher */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0">
-            <button
-              type="button"
-              onClick={() => handleModeChange('BOOKING')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
-                jenisKedatangan === 'BOOKING'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Booking Jadwal
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange('WALK_IN')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
-                jenisKedatangan === 'WALK_IN'
-                  ? 'bg-amber-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Walk-In / Darurat
-            </button>
-          </div>
+        {/* Mode Switcher */}
+        <div className="flex items-center bg-[#F1F5F9] p-1 rounded-xl border border-[#CBD5E1]/70 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleModeChange('BOOKING')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              jenisKedatangan === 'BOOKING'
+                ? 'bg-white text-[#12388F] shadow-xs'
+                : 'text-[#64748B] hover:text-[#0F172A]'
+            }`}
+          >
+            Booking Jadwal
+          </button>
+          <button
+            type="button"
+            onClick={() => handleModeChange('WALK_IN')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer ${
+              jenisKedatangan === 'WALK_IN'
+                ? 'bg-[#12388F] text-white shadow-xs'
+                : 'text-[#64748B] hover:text-[#0F172A]'
+            }`}
+          >
+            Walk-In / Darurat
+          </button>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/30 flex items-start space-x-3 text-xs text-red-300">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+        <div className="p-4 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-3 text-xs text-[#DC2626]">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Main Check-In Form */}
-      <form onSubmit={handleSubmitCheckIn} className="space-y-6">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+      <form onSubmit={handleSubmitCheckIn} className="space-y-5">
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-7 shadow-xs space-y-5">
           {/* Plat Nomor Polisi (Autocomplete with Live Search) */}
           <div className="relative">
-            <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-              Nomor Polisi Kendaraan {jenisKedatangan === 'BOOKING' && <span className="text-indigo-400">(Live Booking Search)</span>}
+            <label className="block text-xs font-bold text-[#0F172A] mb-1.5">
+              Nomor Polisi Kendaraan {jenisKedatangan === 'BOOKING' && <span className="text-[#12388F] font-semibold">(Live Search Booking)</span>}
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
                 <Search className="w-4 h-4" />
               </div>
               <input
@@ -314,10 +307,10 @@ export const CheckInView: React.FC = () => {
                 }}
                 onFocus={() => setShowSuggestions(true)}
                 placeholder="Contoh: BK 9393 ER"
-                className="w-full pl-10 pr-24 py-3 bg-slate-950 border border-slate-800 rounded-xl text-base font-mono font-bold tracking-wider text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 uppercase transition"
+                className="w-full pl-10 pr-24 py-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-base font-mono font-bold tracking-wider text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F] focus:ring-2 focus:ring-[#12388F]/20 uppercase transition"
               />
               {isSearching && (
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-slate-500">
+                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-[#64748B]">
                   Mencari...
                 </div>
               )}
@@ -325,9 +318,9 @@ export const CheckInView: React.FC = () => {
 
             {/* Autocomplete Dropdown for Booking */}
             {jenisKedatangan === 'BOOKING' && showSuggestions && confirmedBookings.length > 0 && !selectedBooking && (
-              <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
-                <div className="p-2 text-[11px] font-semibold text-slate-400 border-b border-slate-800 bg-slate-950/60">
-                  Booking Terjadwal Sesuai Pencarian:
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#CBD5E1] rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                <div className="p-2.5 text-[11px] font-bold text-[#64748B] border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                  Jadwal Booking Terkonfirmasi:
                 </div>
                 {confirmedBookings.map((b) => {
                   const isConfirmed = b.status_booking.toLowerCase() === 'confirmed' || b.status_booking.toLowerCase() === 'approved';
@@ -336,14 +329,14 @@ export const CheckInView: React.FC = () => {
                       key={b.booking_id}
                       type="button"
                       onClick={() => handleSelectBooking(b)}
-                      className="w-full text-left p-3 hover:bg-slate-800/80 border-b border-slate-800/50 flex items-center justify-between transition"
+                      className="w-full text-left p-3 hover:bg-[#F1F5F9] border-b border-[#F1F5F9] flex items-center justify-between transition cursor-pointer"
                     >
                       <div>
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono font-bold text-white text-sm">{b.nomor_polisi}</span>
-                          <span className="text-xs text-slate-400">• {b.customer_name || b.armada_nama || 'Pelanggan'}</span>
+                          <span className="font-mono font-bold text-[#0F172A] text-sm">{b.nomor_polisi}</span>
+                          <span className="text-xs text-[#64748B]">• {b.customer_name || b.armada_nama || 'Pelanggan'}</span>
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5">
+                        <div className="text-xs text-[#64748B] mt-0.5">
                           Driver: {b.nama_driver} ({b.no_telepon_driver})
                         </div>
                       </div>
@@ -351,13 +344,13 @@ export const CheckInView: React.FC = () => {
                         <span
                           className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             isConfirmed
-                              ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-amber-950/80 text-amber-400 border border-amber-500/30'
+                              ? 'bg-[#DCFCE7] text-[#16A34A] border border-[#16A34A]/30'
+                              : 'bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/30'
                           }`}
                         >
                           {b.status_booking}
                         </span>
-                        <div className="text-[11px] text-slate-500 mt-1">
+                        <div className="text-[11px] text-[#64748B] mt-1">
                           {b.tanggal_booking} {b.jam_booking}
                         </div>
                       </div>
@@ -367,34 +360,34 @@ export const CheckInView: React.FC = () => {
               </div>
             )}
 
-            {/* Validation Feedback for Booking Mode */}
+            {/* Validation Feedback */}
             {jenisKedatangan === 'BOOKING' && plateInput.trim().length >= 3 && (
               <div className="mt-2.5">
                 {selectedBooking ? (
                   isBookingValid ? (
-                    <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-center space-x-2.5 text-xs text-emerald-300">
-                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    <div className="p-3 rounded-xl bg-[#DCFCE7] border border-[#16A34A]/30 flex items-center space-x-2.5 text-xs text-[#16A34A]">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
                       <div>
-                        <span className="font-semibold">Booking Terkonfirmasi:</span> Unit dijadwalkan pada {selectedBooking.tanggal_booking} ({selectedBooking.jam_booking}). Data siap di-check-in.
+                        <span className="font-bold">Booking Terkonfirmasi:</span> Unit dijadwalkan pada {selectedBooking.tanggal_booking} ({selectedBooking.jam_booking}). Data siap di-check in.
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-500/40 flex items-center space-x-2.5 text-xs text-amber-300">
-                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <div className="p-3 rounded-xl bg-[#FEF3C7] border border-[#D97706]/30 flex items-center space-x-2.5 text-xs text-[#D97706]">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
                       <div>
-                        <span className="font-semibold">Booking Belum Dikonfirmasi:</span> Status saat ini adalah <strong className="uppercase">{selectedBooking.status_booking}</strong>. Silakan hubungi Admin Bengkel untuk konfirmasi terlebih dahulu sebelum kendaraan diizinkan masuk.
+                        <span className="font-bold">Booking Belum Dikonfirmasi:</span> Status saat ini adalah <strong className="uppercase">{selectedBooking.status_booking}</strong>. Silakan hubungi Admin Bengkel untuk konfirmasi terlebih dahulu sebelum kendaraan diizinkan masuk.
                       </div>
                     </div>
                   )
                 ) : (
-                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-400 flex items-center justify-between">
+                  <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] text-xs text-[#64748B] flex items-center justify-between">
                     <span>Belum memilih dari jadwal booking confirmed.</span>
                     <button
                       type="button"
                       onClick={() => handleModeChange('WALK_IN')}
-                      className="text-amber-400 hover:underline font-medium"
+                      className="text-[#12388F] hover:underline font-bold"
                     >
-                      Ubah ke Walk-In?
+                      Ganti ke Walk-In?
                     </button>
                   </div>
                 )}
@@ -405,11 +398,11 @@ export const CheckInView: React.FC = () => {
           {/* Form Fields: Driver & Service */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
                 Nama Pengemudi / Driver
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
                   <User className="w-4 h-4" />
                 </div>
                 <input
@@ -418,17 +411,17 @@ export const CheckInView: React.FC = () => {
                   value={namaPengemudi}
                   onChange={(e) => setNamaPengemudi(e.target.value)}
                   placeholder="Nama pengemudi"
-                  className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full pl-10 pr-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
                 No. Telepon / WhatsApp Driver
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
                   <Phone className="w-4 h-4" />
                 </div>
                 <input
@@ -436,19 +429,19 @@ export const CheckInView: React.FC = () => {
                   value={noTelpPengemudi}
                   onChange={(e) => setNoTelpPengemudi(e.target.value)}
                   placeholder="0812xxxxxxx"
-                  className="w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full pl-10 pr-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
                 Tipe Kunjungan
               </label>
               <select
                 value={tipeKunjungan}
                 onChange={(e) => setTipeKunjungan(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
               >
                 <option value="Service Berkala">Service Berkala</option>
                 <option value="Perbaikan Ringan">Perbaikan Ringan</option>
@@ -459,7 +452,7 @@ export const CheckInView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
                 Keluhan Driver / Rencana Perbaikan
               </label>
               <input
@@ -467,13 +460,13 @@ export const CheckInView: React.FC = () => {
                 value={keluhan}
                 onChange={(e) => setKeluhan(e.target.value)}
                 placeholder="Contoh: Ganti Oli Mesin & Filter"
-                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full px-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
               Catatan Khusus Security Masuk (Opsional)
             </label>
             <textarea
@@ -481,12 +474,12 @@ export const CheckInView: React.FC = () => {
               value={catatanMasuk}
               onChange={(e) => setCatatanMasuk(e.target.value)}
               placeholder="Catatan barang bawaan, kondisi bodi atau petunjuk khusus pos..."
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-indigo-500 resize-none"
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] focus:outline-none focus:border-[#12388F] resize-none"
             />
           </div>
 
           {/* Multi Camera Section */}
-          <div className="pt-4 border-t border-slate-800">
+          <div className="pt-4 border-t border-[#E2E8F0]">
             <MultiCameraSection
               photos={photos}
               onChange={setPhotos}
@@ -500,10 +493,10 @@ export const CheckInView: React.FC = () => {
           <button
             type="submit"
             disabled={!isFormValid() || isSubmitting}
-            className={`px-8 py-3.5 rounded-xl font-semibold text-sm flex items-center space-x-2 transition ${
+            className={`px-8 py-3.5 rounded-xl font-bold text-sm flex items-center space-x-2 transition ${
               isFormValid() && !isSubmitting
-                ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xl shadow-indigo-600/30 cursor-pointer'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/50'
+                ? 'bg-[#12388F] hover:bg-[#0D2A6B] text-white shadow-lg shadow-[#12388F]/25 cursor-pointer'
+                : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed border border-[#CBD5E1]'
             }`}
           >
             <Send className="w-4 h-4" />
