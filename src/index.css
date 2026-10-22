@@ -1,0 +1,699 @@
+@import "tailwindcss";
+@import './styles/tokens.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer utilities {
+  .bg-accent {
+    background-color: var(--color-accent, #12388F);
+  }
+  .hover\:bg-accent-hover:hover {
+    background-color: var(--color-accent-hover, #0D2A6B);
+  }
+  .active\:bg-accent-active:active {
+    background-color: var(--color-accent-active, #0A2154);
+  }
+  .text-accent {
+    color: var(--color-accent, #12388F);
+  }
+  .hover\:text-accent:hover {
+    color: var(--color-accent-hover, #0D2A6B);
+  }
+  .border-accent {
+    border-color: var(--color-accent, #12388F);
+  }
+  .focus\:border-accent:focus {
+    border-color: var(--color-accent, #12388F);
+  }
+  .focus\:ring-accent:focus {
+    --tw-ring-color: var(--color-accent, #12388F);
+  }
+
+  @keyframes bookingFadeSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-booking-row {
+    animation: bookingFadeSlideUp 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-booking-row {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+
+  @keyframes popoverScaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-popover-in {
+    animation: popoverScaleIn 120ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-popover-in {
+      animation: none !important;
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
+}
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-surface, #EEF2F7);
+    color: #334155;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #0F172A;
+  }
+
+  html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6 {
+    color: #F8FAFC;
+  }
+
+  /* Form Elements Base Clean Polish */
+  body:not(.login-legacy-theme) input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="range"]),
+  body:not(.login-legacy-theme) select,
+  body:not(.login-legacy-theme) textarea {
+    background-color: #FFFFFF;
+    border-color: #CBD5E1;
+    color: #0F172A;
+  }
+
+  /* Dark cockpit: form mengikuti token */
+  html.dark body:not(.login-legacy-theme) input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="range"]),
+  html.dark body:not(.login-legacy-theme) select,
+  html.dark body:not(.login-legacy-theme) textarea {
+    background-color: var(--color-surface-raised);
+    border-color: var(--color-border);
+    color: var(--color-ink);
+  }
+
+  input::placeholder,
+  select::placeholder,
+  textarea::placeholder {
+    color: #64748B;
+  }
+
+  html.dark body:not(.login-legacy-theme) input::placeholder,
+  html.dark body:not(.login-legacy-theme) select::placeholder,
+  html.dark body:not(.login-legacy-theme) textarea::placeholder {
+    color: #94A3B8;
+  }
+
+  body:not(.login-legacy-theme) input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="range"]):focus,
+  body:not(.login-legacy-theme) select:focus,
+  body:not(.login-legacy-theme) textarea:focus {
+    border-color: #12388F !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(18, 56, 143, 0.20) !important;
+  }
+
+  /* Global Table Styling: header #F1F5F9, hover #F8FAFC */
+  thead {
+    background-color: #F1F5F9;
+    color: #334155;
+  }
+
+  tbody tr:hover {
+    background-color: #EEF4FF;
+  }
+
+  html.dark thead {
+    background-color: #0F172A;
+    color: #CBD5E1;
+  }
+
+  html.dark tbody tr:hover {
+    background-color: #131C31;
+  }
+
+  /* Custom text selection styling - KIM3 navy */
+  ::selection {
+    background-color: #12388F;
+    color: #FFFFFF;
+  }
+
+  ::-moz-selection {
+    background-color: #12388F;
+    color: #FFFFFF;
+  }
+}
+
+/* Panel visual gelap (sisi kiri login / workshop visual) */
+.bg-workshop-pattern ::selection,
+.bg-surface-dark ::selection {
+  background-color: #2DD4BF;
+  color: #042F2E;
+}
+
+.bg-workshop-pattern ::-moz-selection,
+.bg-surface-dark ::-moz-selection {
+  background-color: #2DD4BF;
+  color: #042F2E;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Mobile responsive app container */
+@media (max-width: 640px) {
+  .mobile-screen {
+    min-height: 100vh;
+    padding-bottom: 72px; /* Space for mobile bottom navigation */
+  }
+}
+
+/* Modal and Backdrop Animations */
+@keyframes app-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes app-modal-slide {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.app-backdrop-in {
+  animation: app-backdrop-fade 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.app-modal-in {
+  animation: app-modal-slide 160ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-backdrop-in,
+  .app-modal-in,
+  .app-page-transition,
+  .animate-engine-start,
+  .login-aurora-a,
+  .login-aurora-b,
+  .login-wheel,
+  .login-reveal,
+  .login-pop,
+  .login-accent-line,
+  .login-form-swap,
+  .login-btn::after {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  .login-title-sheen {
+    animation: none !important;
+    background-position: 0 0;
+  }
+}
+
+/* ==========================================================================
+   AUTH PAGE SCOPED VARIABLES & STYLING
+   Khusus untuk halaman Login & Register (tidak mempengaruhi Dashboard)
+   ========================================================================== */
+.auth-page {
+  --auth-label-dark: #CBD5E1;
+  --auth-text-dark: #E2E8F0;
+  --auth-title-dark: #F1F5F9;
+  --auth-text-muted: #475569;
+  --auth-placeholder: #64748B;
+  --auth-input-border: #CBD5E1;
+  --auth-bg-right: #E8EEF5;
+  --auth-amber: #F2C14E;
+  --auth-amber-hover: #F59E0B;
+  --auth-navy: #12388F;
+  --auth-navy-hover: #0D2A6B;
+}
+
+.auth-page .login-form-bg {
+  background-color: var(--auth-bg-right, #E8EEF5);
+  background-image:
+    radial-gradient(55% 45% at 100% 0%, rgba(18, 56, 143, 0.07) 0%, transparent 70%),
+    radial-gradient(rgba(18, 56, 143, 0.08) 1px, transparent 1.3px);
+  background-size: auto, 24px 24px;
+}
+
+.auth-page .auth-label-dark {
+  color: var(--auth-label-dark, #CBD5E1);
+}
+
+.auth-page .auth-text-dark {
+  color: var(--auth-text-dark, #E2E8F0);
+}
+
+.auth-page .auth-title-dark {
+  color: var(--auth-title-dark, #F1F5F9);
+}
+
+.auth-page .auth-icon-box {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--auth-amber, #F2C14E);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.auth-page .group:hover .auth-icon-box {
+  background: var(--auth-amber, #F2C14E);
+  border-color: var(--auth-amber-hover, #F59E0B);
+  color: #0B1F4D;
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.auth-page .auth-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #F1F5F9;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+  font-weight: 500;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s, transform 0.2s, color 0.2s;
+}
+
+.auth-page .auth-chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.26);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.auth-page .auth-subtitle {
+  color: var(--auth-text-muted, #475569);
+}
+
+.auth-page .auth-tab-inactive {
+  color: var(--auth-text-muted, #475569);
+}
+
+.auth-page .auth-tab-inactive:hover {
+  color: var(--auth-navy, #12388F);
+}
+
+.auth-page .auth-input {
+  border-color: var(--auth-input-border, #CBD5E1);
+  color: #0F172A;
+}
+
+.auth-page .auth-input::placeholder {
+  color: var(--auth-placeholder, #64748B);
+}
+
+.auth-page .auth-input:focus {
+  border-color: var(--auth-navy, #12388F) !important;
+  box-shadow: 0 0 0 2px rgba(18, 56, 143, 0.20) !important;
+}
+
+/* Kelas animasi & utilitas login legacy scoped */
+.login-legacy-theme {
+  .login-aurora-a,
+  .login-aurora-b,
+  .login-wheel,
+  .login-reveal,
+  .login-pop,
+  .login-accent-line,
+  .login-form-swap,
+  .login-btn::after {
+    will-change: transform, opacity;
+  }
+}
+
+@keyframes login-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.login-reveal {
+  animation: login-fade-up 600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes login-wheel-spin {
+  to { transform: rotate(360deg); }
+}
+
+.login-wheel {
+  color: rgba(255, 255, 255, 0.18);
+  transform-origin: 200px 200px;
+  animation: login-wheel-spin 90s linear infinite;
+}
+
+.login-aurora-a {
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(18, 56, 143, 0.16), transparent 70%);
+  filter: blur(52px);
+  animation: none;
+  display: block;
+}
+
+.login-aurora-b {
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.05), transparent 70%);
+  filter: blur(60px);
+  animation: none;
+  display: block;
+}
+
+@keyframes login-drift-a {
+  to { transform: translate3d(70px, -40px, 0) scale(1.18); }
+}
+
+@keyframes login-drift-b {
+  to { transform: translate3d(-60px, -50px, 0) scale(1.12); }
+}
+
+.login-title-sheen {
+  color: #FFFFFF;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.login-accent-line {
+  height: 3.5px;
+  width: 52px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #F59E0B, #F2C14E);
+  box-shadow: none;
+  margin-bottom: 16px;
+  animation: login-line-grow 700ms 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes login-line-grow {
+  from { width: 0; }
+}
+
+@keyframes login-pop {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: none; }
+}
+
+.login-pop {
+  animation: login-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes login-swap {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.login-form-swap {
+  animation: login-swap 260ms ease-out both;
+}
+
+.login-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.28) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+
+.login-btn:hover:not(:disabled)::after {
+  transform: translateX(120%);
+  transition: transform 700ms ease;
+}
+
+/* Tombol login KIM3 Navy */
+.login-legacy-theme .login-btn {
+  background-color: #12388F;
+  background-image: linear-gradient(180deg, #1742A3 0%, #12388F 100%);
+  box-shadow: 0 4px 14px rgba(18, 56, 143, 0.28);
+  color: #FFFFFF;
+}
+
+.login-legacy-theme .login-btn:hover:not(:disabled) {
+  background-color: #0D2A6B;
+  background-image: linear-gradient(180deg, #12388F 0%, #0D2A6B 100%);
+}
+
+/* Kelas warna semantik panel login KIM3 */
+.lg-text-bright { 
+  color: var(--lg-p-accent-text, #F2C14E); 
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.lg-dot-warm { 
+  background: var(--lg-p-accent, #F2C14E); 
+  box-shadow: none;
+}
+
+.lg-icon-box {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #F2C14E;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.group:hover .lg-icon-box {
+  background: #F2C14E;
+  border-color: #F59E0B;
+  color: #0B1F4D;
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.lg-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #F1F5F9;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.12);
+  font-weight: 500;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s, transform 0.2s, color 0.2s;
+}
+
+.lg-chip:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.26);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.lg-edge-light {
+  background-image: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.08), transparent);
+}
+
+/* Teks panel kiri */
+.lg-p-title { color: var(--lg-p-title); }
+
+.lg-p-text { color: var(--lg-p-text); }
+
+.lg-p-muted { color: var(--lg-p-muted); }
+
+.lg-p-dl {
+  border-top: 1px solid var(--lg-p-line);
+  border-bottom: 1px solid var(--lg-p-line);
+}
+
+.lg-p-dl > * + * {
+  border-top: 1px solid var(--lg-p-line);
+}
+
+/* Seleksi teks panel kiri login: biru aksen, selaras palet panel terang */
+.login-legacy-theme .bg-workshop-pattern ::selection,
+.login-legacy-theme .bg-surface-dark ::selection {
+  background-color: rgb(var(--lg-p-accent-rgb) / 0.25);
+  color: #0F1F3D;
+}
+
+.login-legacy-theme .bg-workshop-pattern ::-moz-selection,
+.login-legacy-theme .bg-surface-dark ::-moz-selection {
+  background-color: rgb(var(--lg-p-accent-rgb) / 0.25);
+  color: #0F1F3D;
+}
+
+/* ============================================================ */
+/* PRINT MEDIA STYLES (Thermal 80mm & A4 Document Standardization) */
+/* ============================================================ */
+@media print {
+  @page {
+    margin: 0;
+    size: auto;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Saat modal cetak terbuka: sembunyikan SEMUA halaman web,
+     hanya overlay modal cetak (.printable-container) yang dirender.
+     Sehingga preview print berisi dokumen saja, bukan halaman aplikasi. */
+  body:has(> .printable-container) > *:not(.printable-container),
+  body:has(> .printable-container) > #root {
+    display: none !important;
+  }
+
+  /* Fallback tanpa :has(): sembunyikan layout aplikasi & UI umum */
+  #root,
+  header,
+  aside,
+  nav,
+  footer,
+  .no-print,
+  button,
+  .fixed:not(.printable-container),
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  .backdrop-blur-lg {
+    display: none !important;
+  }
+
+  /* Overlay modal cetak: ubah dari fixed fullscreen jadi alur normal,
+     latar putih penuh (tanpa blur/transparansi). */
+  .printable-container {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    z-index: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+    /* Paksa token tema ke mode terang agar teks selalu terbaca di kertas */
+    --color-surface: #ffffff;
+    --color-surface-raised: #ffffff;
+    --color-surface-dark: #ffffff;
+    --color-ink: #0f172a;
+    --color-ink-muted: #475569;
+    --color-ink-subtle: #64748b;
+    --color-border: #cbd5e1;
+  }
+
+  /* Kartu modal: buang semua gaya layar (border, shadow, rounded, scroll) */
+  .printable-container > div {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  /* Area scroll preview & layout flex di dalam modal: jadikan blok biasa */
+  .printable-container .flex-1 {
+    display: block !important;
+    flex: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  .printable-container .overflow-y-auto {
+    overflow: visible !important;
+  }
+
+  /* Thermal 80mm Receipt Style — terpusat di atas kertas */
+  #printable-thermal-receipt {
+    display: block !important;
+    position: static !important;
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 3mm !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  /* Formal A4 Document Style (SPK & Memo Keluar) */
+  #printable-a4-document,
+  #printable-memo-keluar {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 12mm 15mm !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    font-family: var(--font-sans), sans-serif !important;
+    font-size: 12px !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  /* Prevent page breaks inside critical sections */
+  .avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
