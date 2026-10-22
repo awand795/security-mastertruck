@@ -82,5 +82,37 @@ export const securityApi = {
     });
     return Array.isArray(res.data) ? res.data : [];
   },
+
+  // 8. DarkoPOS Login (/api/v1/users/login)
+  loginDarkoPos: async (payload: {
+    userid: string;
+    password: string;
+    company?: string;
+  }, customBaseUrl?: string) => {
+    const apiKey = import.meta.env.VITE_DARKOPOS_API_KEY || 'TURNONTHEAPI98';
+    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || '').replace(/\/+$/, '');
+
+    if (!baseUrl) {
+      throw new Error('BASE_URL_NOT_SET');
+    }
+
+    const response = await axios.post(
+      `${baseUrl}/api/v1/users/login`,
+      {
+        userid: payload.userid,
+        password: payload.password,
+        company: payload.company || '',
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+        },
+        timeout: 10000,
+      }
+    );
+
+    return response.data;
+  },
 };
 

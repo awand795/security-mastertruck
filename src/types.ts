@@ -71,9 +71,35 @@ export interface MemoKeluarItem {
   catatan_keluar?: string;
 }
 
+export interface DarkoPosProfile {
+  userid: string;
+  username: string;
+  usercompany?: string;
+  userlogintime?: string;
+  useripaddr2?: string;
+  role?: string;
+  resetpsw?: number;
+  store?: number;
+  permission?: string;
+  istotp?: boolean;
+  sessionid?: string;
+}
+
+export interface DarkoPosLoginResponse {
+  reqId?: string;
+  success: boolean;
+  message: string;
+  profile?: DarkoPosProfile;
+  id_token?: string;
+}
+
 export interface SecurityUser {
   id: string;
   nama: string;
   role: string;
-  email: string;
+  email?: string;
+  userid?: string;
+  company?: string;
+  id_token?: string;
+  profile?: DarkoPosProfile;
 }
