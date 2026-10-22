@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { securityApi } from '../api/client';
-import { LoginBrandPanel } from '../components/login/LoginBrandPanel';
 
 const INPUT_CLS = 'auth-input w-full pl-11 pr-3.5 py-3 text-sm sm:text-[15px] rounded-lg border border-[#CBD5E1] bg-white text-[#0F172A] placeholder:text-[#64748B] focus:outline-none focus:border-[#12388F] focus:ring-2 focus:ring-[#12388F]/20 transition-all';
 const INPUT_PWD_CLS = INPUT_CLS.replace('pr-3.5', 'pr-11');
@@ -132,34 +131,25 @@ export const LoginSecurity: React.FC = () => {
   };
 
   return (
-    <main className="auth-page login-legacy-theme min-h-screen lg:h-dvh lg:overflow-hidden flex flex-col lg:flex-row bg-[#EEF2F7] text-[#0F172A] antialiased font-sans relative">
+    <main className="auth-page login-legacy-theme min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 bg-[#E8EEF5] text-[#0F172A] antialiased font-sans relative">
       
       {/* Top Bar Aksen Tipis (--color-accent #12388F) */}
       <div className="h-[2px] w-full bg-[#12388F] fixed top-0 left-0 z-50 pointer-events-none" />
 
-      {/* ========================================================================= */}
-      {/* SISI KIRI: PANEL BRAND (PERSIS SAMA DENGAN WEB FLEET)                    */}
-      {/* ========================================================================= */}
-      <LoginBrandPanel />
-
-      {/* ========================================================================= */}
-      {/* SISI KANAN: FORM LOGIN SECURITY (TEMA SAMA DENGAN WEB FLEET, TANPA DAFTAR) */}
-      {/* ========================================================================= */}
-      <section className="flex-1 bg-[#E8EEF5] flex flex-col items-center p-6 sm:p-8 lg:p-12 overflow-y-auto">
-        <div className="w-full max-w-[28rem] my-auto">
-          
-          {/* Mobile Header Branding */}
-          <div className="lg:hidden mb-5 flex flex-col items-center text-center">
-            <div className="bg-[#0A0D14] p-2.5 px-4 rounded-xl border border-white/10 mb-2 inline-flex items-center shadow-lg shadow-black/20">
-              <img src="/master-truck-logo.png" alt="Master Truck Logo" className="h-9 w-auto object-contain" />
-            </div>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#12388F]/10 text-[#12388F] border border-[#12388F]/20">
-              Pos Security Gerbang
-            </span>
+      <div className="w-full max-w-[28rem] my-auto">
+        
+        {/* Header Branding */}
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="bg-[#0A0D14] p-2.5 px-4 rounded-xl border border-white/10 mb-2 inline-flex items-center shadow-lg shadow-black/20">
+            <img src="/master-truck-logo.png" alt="Master Truck Logo" className="h-9 w-auto object-contain" />
           </div>
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#12388F]/10 text-[#12388F] border border-[#12388F]/20">
+            Pos Security Gerbang
+          </span>
+        </div>
 
-          {/* Card Form Login */}
-          <div className="relative overflow-hidden bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-9 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/10">
+        {/* Card Form Login */}
+        <div className="relative overflow-hidden bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-9 shadow-2xl shadow-slate-900/15 ring-1 ring-slate-900/10">
             <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#12388F] via-[#2563EB] to-[#F59E0B]" />
             
             {/* Header Badge */}
@@ -309,7 +299,6 @@ export const LoginSecurity: React.FC = () => {
             Bengkel KIM 3 Medan • Master Truck Workshop Network
           </div>
         </div>
-      </section>
     </main>
   );
 };
