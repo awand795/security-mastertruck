@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { BookingConfirmedItem, ActiveInsideVehicle, MemoKeluarItem, MasterFoto } from '../types';
+import { BookingConfirmedItem, ActiveInsideVehicle, MemoKeluarItem, MsFoto } from '../types';
 
 const API_BASE = '/api';
 const API_KEY = 'KIM3-SECURE-TOKEN-2026-X998A7B6C';
@@ -38,7 +38,7 @@ export const securityApi = {
     return res.data;
   },
 
-  // 3. Save photo to sch_pos.master_foto
+  // 3. Save photo to sch_pos.ms_foto
   postAddFoto: async (payload: {
     kunjungan_id: number;
     jenis_event: 'MASUK' | 'KELUAR';
@@ -76,10 +76,11 @@ export const securityApi = {
   },
 
   // 7. Get photos for a visit
-  getFotoKunjungan: async (kunjungan_id: number): Promise<MasterFoto[]> => {
+  getFotoKunjungan: async (kunjungan_id: number): Promise<MsFoto[]> => {
     const res = await apiClient.get('/kim3/security/foto-kunjungan', {
       params: { kunjungan_id }
     });
     return Array.isArray(res.data) ? res.data : [];
   },
 };
+

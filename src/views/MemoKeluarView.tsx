@@ -10,14 +10,14 @@ import {
   Image as ImageIcon 
 } from 'lucide-react';
 import { securityApi } from '../api/client';
-import { MemoKeluarItem, MasterFoto } from '../types';
+import { MemoKeluarItem, MsFoto } from '../types';
 
 export const MemoKeluarView: React.FC = () => {
   const [memoList, setMemoList] = useState<MemoKeluarItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMemo, setSelectedMemo] = useState<MemoKeluarItem | null>(null);
-  const [memoPhotos, setMemoPhotos] = useState<MasterFoto[]>([]);
+  const [memoPhotos, setMemoPhotos] = useState<MsFoto[]>([]);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
 
   const fetchMemos = async (q?: string) => {

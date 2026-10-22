@@ -18,7 +18,7 @@ export interface KunjunganMasuk {
   updated_at?: string;
 }
 
-export interface MasterFoto {
+export interface MsFoto {
   id?: number;
   kunjungan_id: number;
   jenis_event: 'MASUK' | 'KELUAR';
