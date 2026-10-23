@@ -21,6 +21,7 @@ import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCamer
 import { MemoKeluarPrintModal } from '../components/security/MemoKeluarPrintModal';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { formatPlate, normalizePlate } from '../utils/plate';
+import { broadcastRealtimeEvent } from '../utils/realtime';
 
 const INITIAL_PHOTOS: PhotoSlot[] = [
   { id: 'depan', label: 'Tampak Depan' },
@@ -147,6 +148,21 @@ export const CheckOutView: React.FC = () => {
         petugas_keluar: currentUser?.nama || 'Pos Security KIM 3',
         durasi: formatDuration(selectedVehicle.waktu_masuk) || '-',
       });
+
+      broadcastRealtimeEvent({
+        type: 'VEHICLE_CHECKED_OUT',
+        targetRoles: ['Customer Fleet', 'SA', 'ALL'],
+        title: 'Kendaraan Check Out & Keluar Gerbang',
+        message: `Unit ${formatPlate(selectedVehicle.no_polisi)} telah selesai pemeriksaan dan keluar gerbang security. No. Memo: ${checkOutRes?.nomor_memo || 'Memo Keluar'}.`,
+        linkTab: 'fleet-service',
+        urgency: 'success',
+        meta: {
+          no_polisi: selectedVehicle.no_polisi,
+          nomor_memo: checkOutRes?.nomor_memo,
+          nomor_tiket: selectedVehicle.nomor_tiket,
+        },
+      });
+
       setIsPrintModalOpen(true);
     } catch (err: any) {
       console.error('Check out error:', err);

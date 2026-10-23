@@ -26,6 +26,7 @@ import { SelectMenu, SelectMenuOption } from '../components/common/SelectMenu';
 import { CheckinTicketModal, SuccessTicketData } from '../components/security/CheckinTicketModal';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { formatPlate, normalizePlate } from '../utils/plate';
+import { broadcastRealtimeEvent } from '../utils/realtime';
 
 const INITIAL_PHOTOS: PhotoSlot[] = [
   { id: 'depan', label: 'Tampak Depan' },
@@ -392,6 +393,21 @@ export const CheckInView: React.FC = () => {
         pic: picValue || '-',
         oleh: payload.petugas_security,
       });
+
+      broadcastRealtimeEvent({
+        type: 'VEHICLE_CHECKED_IN',
+        targetRoles: ['Customer Fleet', 'SA', 'ALL'],
+        title: 'Kendaraan Masuk di Gerbang',
+        message: `Unit ${formatPlate(result?.no_polisi || cleanPlate)} (${payload.nama_pengemudi}) telah resmi check in di Pos Security. No. Tiket: ${result?.nomor_tiket || generatedTiket}.`,
+        linkTab: 'fleet-service',
+        urgency: 'info',
+        meta: {
+          no_polisi: result?.no_polisi || cleanPlate,
+          nomor_tiket: result?.nomor_tiket || generatedTiket,
+          booking_id: result?.booking_id ?? bookingId,
+        },
+      });
+
       setIsTicketModalOpen(true);
     } catch (err: any) {
       console.error('Check in error:', err);
