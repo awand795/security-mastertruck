@@ -22,6 +22,7 @@ import { securityApi } from '../api/client';
 import { CheckinCandidate, EmployeeItem } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
 import { SelectMenu, SelectMenuOption } from '../components/common/SelectMenu';
+import { CheckinTicketModal, SuccessTicketData } from '../components/security/CheckinTicketModal';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { formatPlate, normalizePlate } from '../utils/plate';
 
@@ -96,19 +97,8 @@ export const CheckInView: React.FC = () => {
 
   // UI status
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [successTicket, setSuccessTicket] = useState<{
-    nomor_tiket: string;
-    no_polisi: string;
-    waktu_masuk: string;
-    nama_driver: string;
-    jenis: string;
-    booking_id?: number | null;
-    tujuan: string;
-    keperluan: string;
-    kontak: string;
-    pic: string;
-    oleh: string;
-  } | null>(null);
+  const [successTicket, setSuccessTicket] = useState<SuccessTicketData | null>(null);
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [unconfirmedModalCandidate, setUnconfirmedModalCandidate] = useState<CheckinCandidate | null>(null);
 
@@ -401,6 +391,7 @@ export const CheckInView: React.FC = () => {
         pic: picValue || '-',
         oleh: payload.petugas_security,
       });
+      setIsTicketModalOpen(true);
     } catch (err: any) {
       console.error('Check in error:', err);
       setErrorMsg(err.response?.data?.message || 'Gagal menyimpan check-in. Periksa jaringan pos gerbang.');
@@ -507,21 +498,32 @@ export const CheckInView: React.FC = () => {
 
           <div className="mt-4 flex flex-col gap-2">
             <button
-              onClick={handleReset}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#12388F] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0D2A6B]"
+              onClick={() => setIsTicketModalOpen(true)}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#12388F] px-4 py-3 text-xs font-bold text-white shadow-md shadow-[#12388F]/25 transition hover:bg-[#0D2A6B]"
             >
-              <LogIn className="h-4 w-4" />
-              Check In Berikutnya
+              <Printer className="h-4 w-4" />
+              Buka & Cetak Karcis Tiket
             </button>
             <button
-              onClick={() => window.print()}
+              onClick={handleReset}
               className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-xs font-semibold text-[#0F172A] transition hover:bg-[#F8FAFC]"
             >
-              <Printer className="h-4 w-4 text-[#12388F]" />
-              Cetak Tiket
+              <LogIn className="h-4 w-4 text-[#12388F]" />
+              Check In Berikutnya
             </button>
           </div>
         </div>
+
+        {/* Modal Cetak Karcis Tiket via Iframe (Anti Blank) */}
+        <CheckinTicketModal
+          ticket={successTicket}
+          isOpen={isTicketModalOpen}
+          onClose={() => setIsTicketModalOpen(false)}
+          onNextCheckin={() => {
+            setIsTicketModalOpen(false);
+            handleReset();
+          }}
+        />
       </div>
     );
   }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, Trash2, Plus, Eye } from 'lucide-react';
+import { Camera, Trash2, Plus, X, RefreshCw } from 'lucide-react';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
 
 export interface PhotoSlot {
@@ -57,90 +57,87 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
   };
 
   const activeSlot = photos.find((p) => p.id === activeSlotId);
+  const completedCount = photos.filter((p) => Boolean(p.dataUrl)).length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h4 className="text-xs sm:text-sm font-bold text-[#0F172A]">
-            Dokumentasi Foto Fisik ({eventTitle})
-          </h4>
-          <p className="text-[11px] text-[#64748B]">
-            Ambil foto 4 sudut utama dan tambahkan sudut khusus jika ada lecet/kondisi khusus.
-          </p>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <h4 className="text-xs font-bold text-[#0F172A]">Foto {eventTitle}</h4>
+          <span className="text-[10px] font-semibold text-[#64748B]">
+            {completedCount}/{photos.length} • opsional
+          </span>
         </div>
         <button
           type="button"
           onClick={handleAddCustomSlot}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#12388F]/10 text-[#12388F] hover:bg-[#12388F]/20 border border-[#12388F]/20 text-xs font-bold transition cursor-pointer"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-[#CBD5E1] bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#12388F] transition hover:bg-[#F8FAFC]"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Tambah Sudut Foto</span>
+          <Plus className="h-3.5 w-3.5" />
+          Tambah
         </button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         {photos.map((slot) => {
           const hasPhoto = Boolean(slot.dataUrl);
           return (
             <div
               key={slot.id}
-              className={`relative rounded-xl border p-2 flex flex-col items-center justify-between text-center transition ${
-                hasPhoto
-                  ? 'border-[#16A34A]/40 bg-[#DCFCE7]/30'
-                  : 'border-[#CBD5E1] bg-[#F8FAFC] hover:border-[#94A3B8]'
+              className={`rounded-xl border p-1.5 ${
+                hasPhoto ? 'border-[#16A34A]/30 bg-[#F0FDF4]/50' : 'border-[#CBD5E1] bg-[#F8FAFC]'
               }`}
             >
-              <div className="w-full flex items-center justify-between px-1 mb-1.5">
-                <span className="text-[11px] font-bold text-[#0F172A] truncate max-w-[110px]" title={slot.label}>
+              <div className="mb-1 flex items-center justify-between gap-1 px-0.5">
+                <span
+                  className="truncate text-[10px] font-bold text-[#0F172A]"
+                  title={slot.label}
+                >
                   {slot.label}
                 </span>
-                {hasPhoto && (
+                {(hasPhoto || slot.isCustom) && (
                   <button
                     type="button"
                     onClick={() => handleRemovePhoto(slot.id)}
-                    className="text-[#DC2626] hover:text-[#B91C1C] p-0.5 rounded transition cursor-pointer"
-                    title="Hapus Foto"
+                    className="shrink-0 cursor-pointer rounded p-0.5 text-[#94A3B8] transition hover:text-[#B91C1C]"
+                    title={slot.isCustom ? 'Hapus sudut foto' : 'Hapus foto'}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 )}
               </div>
 
               {hasPhoto ? (
-                <div className="relative w-full aspect-video rounded-lg overflow-hidden group shadow-2xs">
-                  <img
-                    src={slot.dataUrl}
-                    alt={slot.label}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center space-x-2 transition">
-                    <button
-                      type="button"
-                      onClick={() => setPreviewPhoto(slot.dataUrl!)}
-                      className="p-1.5 bg-white text-[#0F172A] rounded-lg hover:bg-slate-100 transition cursor-pointer"
-                      title="Lihat Penuh"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenCapture(slot.id)}
-                      className="p-1.5 bg-[#12388F] text-white rounded-lg hover:bg-[#0D2A6B] transition cursor-pointer"
-                      title="Ambil Ulang"
-                    >
-                      <Camera className="w-4 h-4" />
-                    </button>
-                  </div>
+                <div className="relative overflow-hidden rounded-lg border border-[#E2E8F0] bg-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPhoto(slot.dataUrl!)}
+                    title="Lihat foto"
+                    className="block w-full cursor-zoom-in"
+                  >
+                    <img
+                      src={slot.dataUrl}
+                      alt={slot.label}
+                      className="aspect-video w-full object-cover"
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCapture(slot.id)}
+                    title="Ambil ulang foto"
+                    className="absolute bottom-1 right-1 cursor-pointer rounded-md bg-black/60 p-1.5 text-white transition hover:bg-black/80"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </button>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => handleOpenCapture(slot.id)}
-                  className="w-full aspect-video rounded-lg border border-dashed border-[#CBD5E1] hover:border-[#12388F] bg-white flex flex-col items-center justify-center text-[#64748B] hover:text-[#12388F] transition cursor-pointer"
+                  className="flex aspect-video w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#CBD5E1] bg-white text-[#64748B] transition hover:border-[#12388F] hover:text-[#12388F]"
                 >
-                  <Camera className="w-6 h-6 mb-1 text-[#12388F]" />
-                  <span className="text-[11px] font-bold">Buka Kamera</span>
+                  <Camera className="mb-0.5 h-4 w-4" />
+                  <span className="text-[10px] font-bold">Ambil Foto</span>
                 </button>
               )}
             </div>
@@ -160,15 +157,25 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
 
       {/* Image Preview Modal */}
       {previewPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
-          <div className="relative max-w-2xl w-full bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden p-2 shadow-2xl">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Pratinjau foto"
+          className="app-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+        >
+          <div className="app-modal-in relative w-full max-w-2xl overflow-hidden rounded-2xl bg-[#0B1F4D] p-2 shadow-2xl">
             <button
               onClick={() => setPreviewPhoto(null)}
-              className="absolute top-4 right-4 z-10 p-2 bg-black/60 text-white rounded-full hover:bg-black/80 transition cursor-pointer"
+              title="Tutup pratinjau"
+              className="absolute right-4 top-4 z-10 cursor-pointer rounded-full bg-black/60 p-2 text-white transition hover:bg-black/80"
             >
-              ✕
+              <X className="h-4 w-4" />
             </button>
-            <img src={previewPhoto} alt="Full preview" className="w-full h-auto rounded-xl" />
+            <img
+              src={previewPhoto}
+              alt="Pratinjau penuh foto kendaraan"
+              className="h-auto w-full rounded-xl"
+            />
           </div>
         </div>
       )}

@@ -1,19 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  LogOut, 
-  Search, 
-  Clock, 
-  User, 
-  CheckCircle2, 
+import {
+  LogOut,
+  Search,
+  User,
+  CheckCircle2,
   AlertTriangle,
-  Send,
   Printer,
-  FileCheck
+  FileCheck,
+  Truck,
+  X,
+  Loader2,
+  Clock,
+  Hash,
+  Timer,
+  BadgeCheck,
 } from 'lucide-react';
 import { securityApi } from '../api/client';
 import { ActiveInsideVehicle } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
 import { useSecurityStore } from '../store/useSecurityStore';
+import { formatPlate, normalizePlate } from '../utils/plate';
 
 const INITIAL_PHOTOS: PhotoSlot[] = [
   { id: 'depan', label: 'Tampak Depan' },
@@ -21,6 +27,24 @@ const INITIAL_PHOTOS: PhotoSlot[] = [
   { id: 'kanan', label: 'Tampak Samping Kanan' },
   { id: 'kiri', label: 'Tampak Samping Kiri' },
 ];
+
+const FIELD_CLASS =
+  'w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-2.5 text-sm text-[#0F172A] transition placeholder:text-xs placeholder:text-[#94A3B8] focus:border-[#D97706] focus:outline-none focus:ring-2 focus:ring-[#D97706]/15';
+
+const LABEL_CLASS = 'mb-1 block text-xs font-semibold text-[#0F172A]';
+
+const formatDuration = (waktuMasuk: string) => {
+  const start = new Date(waktuMasuk.replace(' ', 'T'));
+  if (Number.isNaN(start.getTime())) return null;
+  const diffMs = Date.now() - start.getTime();
+  if (diffMs < 0) return null;
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours >= 24) return `${Math.floor(hours / 24)} hari ${hours % 24} jam`;
+  if (hours > 0) return `${hours} jam ${minutes} menit`;
+  return `${minutes} menit`;
+};
 
 export const CheckOutView: React.FC = () => {
   const currentUser = useSecurityStore((state) => state.user);
@@ -43,16 +67,18 @@ export const CheckOutView: React.FC = () => {
     nomor_tiket: string;
     no_polisi: string;
     nama_pengemudi: string;
+    pic_tujuan: string;
     waktu_masuk: string;
     waktu_keluar: string;
     petugas_keluar: string;
+    durasi: string;
   } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const data = await securityApi.getActiveInside(plateInput.trim());
+        const data = await securityApi.getActiveInside(normalizePlate(plateInput));
         setActiveVehicles(data);
       } catch (err) {
         console.error('Error fetching inside vehicles:', err);
@@ -66,13 +92,13 @@ export const CheckOutView: React.FC = () => {
 
   const handleSelectVehicle = (v: ActiveInsideVehicle) => {
     setSelectedVehicle(v);
-    setPlateInput(v.no_polisi);
+    setPlateInput(formatPlate(v.no_polisi));
     setShowSuggestions(false);
   };
 
   const isVehicleInside = Boolean(
-    selectedVehicle && 
-    selectedVehicle.no_polisi.toLowerCase() === plateInput.trim().toLowerCase()
+    selectedVehicle &&
+    normalizePlate(selectedVehicle.no_polisi) === normalizePlate(plateInput)
   );
 
   const handleSubmitCheckOut = async (e: React.FormEvent) => {
@@ -111,9 +137,11 @@ export const CheckOutView: React.FC = () => {
         nomor_tiket: selectedVehicle.nomor_tiket,
         no_polisi: selectedVehicle.no_polisi,
         nama_pengemudi: selectedVehicle.nama_pengemudi,
+        pic_tujuan: selectedVehicle.pic_tujuan || selectedVehicle.nama_pengemudi || '-',
         waktu_masuk: selectedVehicle.waktu_masuk,
         waktu_keluar: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
         petugas_keluar: currentUser?.nama || 'Pos Security KIM 3',
+        durasi: formatDuration(selectedVehicle.waktu_masuk) || '-',
       });
     } catch (err: any) {
       console.error('Check out error:', err);
@@ -131,56 +159,94 @@ export const CheckOutView: React.FC = () => {
     setPhotos(INITIAL_PHOTOS);
   };
 
+  const duration = selectedVehicle ? formatDuration(selectedVehicle.waktu_masuk) : null;
+
   if (successMemo) {
     return (
-      <div className="max-w-xl mx-auto py-4">
-        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-8 text-center shadow-lg relative overflow-hidden">
-          <div className="w-16 h-16 rounded-full bg-[#DCFCE7] border border-[#16A34A]/30 text-[#16A34A] flex items-center justify-center mx-auto mb-4">
-            <FileCheck className="w-8 h-8" />
+      <div className="mx-auto max-w-md py-4">
+        <div className="rounded-2xl border border-[#D5DDE8] bg-white p-6 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#DCFCE7] text-[#16A34A]">
+            <FileCheck className="h-7 w-7" />
           </div>
-
-          <h2 className="text-xl font-bold text-[#0F172A] mb-1">Gate Pass / Memo Keluar Diterbitkan</h2>
-          <p className="text-xs text-[#64748B] mb-6">
-            Kendaraan {successMemo.no_polisi} telah diizinkan keluar dan tercatat resmi di sistem keamanan bengkel.
+          <h2 className="text-lg font-bold text-[#0F172A]">Kendaraan Keluar</h2>
+          <p className="mt-1 text-xs leading-relaxed text-[#64748B]">
+            Memo keluar sudah diterbitkan. Kendaraan boleh meninggalkan bengkel.
           </p>
 
-          <div className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5 mb-6 text-left space-y-3">
-            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
-              <span className="text-xs text-[#64748B]">Nomor Gate Pass / Tiket</span>
-              <span className="text-sm font-mono font-bold text-[#16A34A]">{successMemo.nomor_tiket}</span>
-            </div>
-            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
-              <span className="text-xs text-[#64748B]">Plat Kendaraan</span>
-              <span className="text-sm font-bold text-[#0F172A] tracking-wider font-mono">{successMemo.no_polisi}</span>
-            </div>
-            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
-              <span className="text-xs text-[#64748B]">Pengemudi</span>
-              <span className="text-xs font-semibold text-[#0F172A]">{successMemo.nama_pengemudi}</span>
-            </div>
-            <div className="flex justify-between items-center border-b border-[#E2E8F0] pb-2.5">
-              <span className="text-xs text-[#64748B]">Waktu Masuk</span>
-              <span className="text-xs text-[#475569]">{successMemo.waktu_masuk}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-[#64748B]">Waktu Keluar Gerbang</span>
-              <span className="text-xs font-bold text-[#16A34A]">{successMemo.waktu_keluar}</span>
-            </div>
+          <div className="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
+              Nomor Polisi
+            </p>
+            <p className="font-mono text-2xl font-bold tracking-[0.12em] text-[#0F172A]">
+              {formatPlate(successMemo.no_polisi)}
+            </p>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => window.print()}
-              className="flex-1 py-3 px-4 rounded-xl border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#0F172A] text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer"
-            >
-              <Printer className="w-4 h-4 text-[#12388F]" />
-              <span>Cetak Memo Keluar</span>
-            </button>
+          <dl className="mt-3 space-y-2.5 rounded-xl border border-[#E2E8F0] p-4 text-left text-xs">
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <Hash className="h-3.5 w-3.5" /> No. Memo Keluar
+              </dt>
+              <dd className="font-mono font-bold text-[#15803D]">{successMemo.nomor_tiket}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <User className="h-3.5 w-3.5" /> PIC / Tujuan
+              </dt>
+              <dd className="max-w-[60%] truncate font-semibold text-[#0F172A]">
+                {successMemo.pic_tujuan}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <Truck className="h-3.5 w-3.5" /> Pengemudi
+              </dt>
+              <dd className="max-w-[60%] truncate font-semibold text-[#0F172A]">
+                {successMemo.nama_pengemudi}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <Clock className="h-3.5 w-3.5" /> Check In
+              </dt>
+              <dd className="font-semibold text-[#0F172A]">{successMemo.waktu_masuk}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <LogOut className="h-3.5 w-3.5" /> Check Out
+              </dt>
+              <dd className="font-bold text-[#15803D]">{successMemo.waktu_keluar}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <Timer className="h-3.5 w-3.5" /> Durasi
+              </dt>
+              <dd className="font-semibold text-[#0F172A]">{successMemo.durasi}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <BadgeCheck className="h-3.5 w-3.5" /> Oleh
+              </dt>
+              <dd className="max-w-[60%] truncate font-semibold text-[#0F172A]">
+                {successMemo.petugas_keluar}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="mt-4 flex flex-col gap-2">
             <button
               onClick={handleReset}
-              className="flex-1 py-3 px-4 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold flex items-center justify-center space-x-2 transition shadow-md shadow-[#16A34A]/25 cursor-pointer"
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#15803D] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#166534]"
             >
-              <LogOut className="w-4 h-4" />
-              <span>Check Out Berikutnya</span>
+              <LogOut className="h-4 w-4" />
+              Check Out Berikutnya
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-xs font-semibold text-[#0F172A] transition hover:bg-[#F8FAFC]"
+            >
+              <Printer className="h-4 w-4 text-[#15803D]" />
+              Cetak Memo Keluar
             </button>
           </div>
         </div>
@@ -189,173 +255,227 @@ export const CheckOutView: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
-      {/* Top Banner */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-4 sm:p-5 shadow-xs flex items-center space-x-3">
-        <div className="p-2.5 rounded-xl bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/20">
-          <LogOut className="w-5 h-5" />
+    <div className="mx-auto max-w-3xl space-y-4">
+      <div className="flex items-center gap-3 px-0.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#D97706] text-white shadow-sm shadow-[#D97706]/20">
+          <LogOut className="h-4 w-4" />
         </div>
         <div>
-          <h2 className="text-sm sm:text-base font-bold text-[#0F172A]">Pemeriksaan Kendaraan Keluar (Check Out)</h2>
-          <p className="text-[11px] sm:text-xs text-[#64748B] mt-0.5">
-            Validasi fisik unit armada yang sedang berada di dalam area bengkel sebelum meninggalkan gerbang pos.
+          <h2 className="text-lg font-bold leading-tight tracking-tight text-[#0F172A]">Check Out</h2>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#94A3B8]">
+            Kendaraan keluar
           </p>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="p-3.5 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-2.5 text-xs text-[#DC2626]">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{errorMsg}</span>
+        <div className="flex items-start gap-2 rounded-xl border border-[#DC2626]/25 bg-[#FEF2F2] px-3.5 py-3 text-xs text-[#B91C1C]">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="leading-relaxed">{errorMsg}</span>
         </div>
       )}
 
-      {/* Main Check-Out Form */}
       <form onSubmit={handleSubmitCheckOut} className="space-y-4">
-        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
-          {/* Plat Nomor Polisi Autocomplete against Active Inside */}
-          <div className="relative">
-            <label className="block text-xs font-semibold text-[#0F172A] mb-1">
-              Nomor Polisi Unit Keluar <span className="text-[#D97706] font-normal">(Unit Aktif di Bengkel)</span>
-            </label>
+        <section className="rounded-2xl border border-[#D5DDE8] bg-white p-4 shadow-sm sm:p-5">
+          <div>
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="checkout-plate" className="text-xs font-semibold text-[#0F172A]">
+                Nomor Polisi <span className="text-[#DC2626]">*</span>
+              </label>
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#B45309]">
+                <Truck className="h-3 w-3" />
+                {activeVehicles.length} unit di dalam
+              </span>
+            </div>
+
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#64748B]">
-                <Search className="w-4 h-4" />
-              </div>
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#B45309]" />
               <input
+                id="checkout-plate"
                 type="text"
                 required
+                autoComplete="off"
                 value={plateInput}
                 onChange={(e) => {
-                  setPlateInput(e.target.value.toUpperCase());
+                  const next = formatPlate(e.target.value);
+                  setPlateInput(next);
                   setShowSuggestions(true);
-                  if (selectedVehicle && selectedVehicle.no_polisi !== e.target.value.toUpperCase()) {
+                  if (
+                    selectedVehicle &&
+                    normalizePlate(selectedVehicle.no_polisi) !== normalizePlate(next)
+                  ) {
                     setSelectedVehicle(null);
                   }
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Cari plat unit di bengkel..."
-                className="w-full pl-9 pr-20 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm font-mono font-semibold tracking-wider text-[#0F172A] placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:tracking-normal placeholder:text-[#94A3B8] focus:outline-none focus:border-[#D97706] focus:ring-1 focus:ring-[#D97706]/20 uppercase transition"
+                autoFocus
+                placeholder="Cari plat unit..."
+                className="w-full rounded-xl border border-[#CBD5E1] bg-white py-2.5 pl-10 pr-10 font-mono text-sm font-bold uppercase tracking-[0.08em] text-[#0F172A] transition placeholder:font-sans placeholder:text-sm placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-[#94A3B8] focus:border-[#D97706] focus:outline-none focus:ring-2 focus:ring-[#D97706]/15"
               />
-              {isSearching && (
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-[#64748B]">
-                  Mencari...
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                {isSearching ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-[#B45309]" />
+                ) : plateInput ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlateInput('');
+                      setSelectedVehicle(null);
+                      setShowSuggestions(true);
+                    }}
+                    title="Hapus"
+                    className="cursor-pointer rounded-full p-1 text-[#64748B] transition hover:bg-[#E2E8F0]"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Autocomplete Dropdown */}
+              {showSuggestions && activeVehicles.length > 0 && !selectedVehicle && (
+                <div className="animate-popover-in absolute left-0 right-0 z-20 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-[#CBD5E1] bg-white shadow-xl">
+                  <div className="sticky top-0 border-b border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#64748B]">
+                    Pilih unit di dalam bengkel
+                  </div>
+                  {activeVehicles.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => handleSelectVehicle(v)}
+                      className="flex w-full cursor-pointer items-center justify-between gap-3 border-b border-[#F1F5F9] px-3 py-2.5 text-left transition last:border-0 hover:bg-[#F8FAFC]"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-[#0F172A]">
+                            {formatPlate(v.no_polisi)}
+                          </span>
+                          <span className="text-[10px] text-[#64748B]">{v.nomor_tiket}</span>
+                        </div>
+                        <p className="truncate text-[11px] text-[#64748B]">
+                          {v.nama_pengemudi} • masuk {v.waktu_masuk}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-[#CBD5E1] bg-[#F1F5F9] px-1.5 py-0.5 text-[9px] font-bold text-[#475569]">
+                        {v.jenis_kedatangan}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Autocomplete Dropdown */}
-            {showSuggestions && activeVehicles.length > 0 && !selectedVehicle && (
-              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#CBD5E1] rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
-                <div className="p-2.5 text-[11px] font-bold text-[#64748B] border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                  Armada yang Sedang di Dalam Bengkel:
-                </div>
-                {activeVehicles.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => handleSelectVehicle(v)}
-                    className="w-full text-left p-3 hover:bg-[#F1F5F9] border-b border-[#F1F5F9] flex items-center justify-between transition cursor-pointer"
-                  >
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono font-bold text-[#0F172A] text-sm">{v.no_polisi}</span>
-                        <span className="text-xs text-[#64748B]">• Tiket: {v.nomor_tiket}</span>
-                      </div>
-                      <div className="text-xs text-[#64748B] mt-0.5">
-                        Driver: {v.nama_pengemudi} • Masuk: {v.waktu_masuk}
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#12388F]/10 text-[#12388F] border border-[#12388F]/20">
-                      {v.jenis_kedatangan}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Validation Feedback */}
+            {/* Status singkat */}
             {plateInput.trim().length >= 2 && (
               <div className="mt-2.5">
                 {isVehicleInside && selectedVehicle ? (
-                  <div className="p-3 rounded-xl bg-[#DCFCE7] border border-[#16A34A]/30 flex items-center space-x-2.5 text-xs text-[#16A34A]">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <div>
-                      <span className="font-bold">Unit Ditemukan di Dalam:</span> Tiket {selectedVehicle.nomor_tiket} • Driver: {selectedVehicle.nama_pengemudi}. Siap divalidasi keluar.
-                    </div>
+                  <div className="flex items-start gap-2 rounded-lg border border-[#16A34A]/25 bg-[#F0FDF4] px-3 py-2.5 text-xs text-[#15803D]">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span className="leading-relaxed">
+                      <strong className="font-semibold">Unit ditemukan</strong> — siap dikonfirmasi
+                      keluar.
+                    </span>
                   </div>
                 ) : (
-                  <div className="p-3 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-center space-x-2.5 text-xs text-[#DC2626]">
-                    <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <div>
-                      <span className="font-bold">Kendaraan Tidak Ada di Dalam Bengkel:</span> Plat nomor tidak terdaftar pada antrean aktif masuk atau sudah pernah di-check out. Tombol check out dinonaktifkan.
-                    </div>
+                  <div className="flex items-start gap-2 rounded-lg border border-[#DC2626]/25 bg-[#FEF2F2] px-3 py-2.5 text-xs text-[#B91C1C]">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span className="leading-relaxed">
+                      Plat tidak ada di dalam bengkel. Cek kembali atau pilih dari daftar.
+                    </span>
                   </div>
                 )}
               </div>
             )}
+
+            {/* Info unit terpilih */}
+            {isVehicleInside && selectedVehicle && (
+              <div className="mt-2 grid grid-cols-2 gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-xs">
+                <div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                    <User className="h-3 w-3" /> PIC / TUJUAN
+                  </span>
+                  <p className="mt-0.5 truncate font-bold text-[#0F172A]">
+                    {selectedVehicle.pic_tujuan || '-'}
+                  </p>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                    <Truck className="h-3 w-3" /> PENGEMUDI
+                  </span>
+                  <p className="mt-0.5 truncate font-bold text-[#0F172A]">
+                    {selectedVehicle.nama_pengemudi}
+                  </p>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                    <Truck className="h-3 w-3" /> TUJUAN
+                  </span>
+                  <p className="mt-0.5 truncate font-bold text-[#0F172A]">
+                    {selectedVehicle.tipe_kunjungan}
+                  </p>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                    <Clock className="h-3 w-3" /> WAKTU MASUK
+                  </span>
+                  <p className="mt-0.5 font-bold text-[#0F172A]">{selectedVehicle.waktu_masuk}</p>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                    <Timer className="h-3 w-3" /> DURASI
+                  </span>
+                  <p className="mt-0.5 font-bold text-[#0F172A]">{duration || '-'}</p>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                    <BadgeCheck className="h-3 w-3" /> OLEH
+                  </span>
+                  <p className="mt-0.5 truncate font-bold text-[#0F172A]">
+                    {selectedVehicle.petugas_security_masuk || 'Security'}
+                  </p>
+                </div>
+                <div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#94A3B8]">
+                    <Hash className="h-3 w-3" /> NO. MEMO (OTOMATIS)
+                  </span>
+                  <p className="mt-0.5 truncate font-mono font-bold text-[#15803D]">
+                    {selectedVehicle.nomor_tiket}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Details of selected vehicle */}
-          {selectedVehicle && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs">
-              <div>
-                <span className="text-[#64748B] block font-medium">Nama Pengemudi</span>
-                <span className="text-[#0F172A] font-bold">{selectedVehicle.nama_pengemudi}</span>
-              </div>
-              <div>
-                <span className="text-[#64748B] block font-medium">Tipe Kunjungan</span>
-                <span className="text-[#0F172A] font-bold">{selectedVehicle.tipe_kunjungan}</span>
-              </div>
-              <div>
-                <span className="text-[#64748B] block font-medium">Waktu Masuk Awal</span>
-                <span className="text-[#0F172A] font-bold">{selectedVehicle.waktu_masuk}</span>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-[#0F172A] mb-1">
-              Catatan Pemeriksaan Keluar (Opsional)
+          <div className="mt-5 border-t border-dashed border-[#D5DDE8] pt-5">
+            <label htmlFor="checkout-notes" className={LABEL_CLASS}>
+              Keterangan Tambahan <span className="text-[#94A3B8]">(opsional)</span>
             </label>
-            <textarea
-              rows={2}
+            <input
+              id="checkout-notes"
+              type="text"
               value={catatanKeluar}
               onChange={(e) => setCatatanKeluar(e.target.value)}
-              placeholder="Catatan fisik keluar / surat kendaraan (opsional)"
-              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] placeholder:text-xs placeholder:text-[#94A3B8] focus:outline-none focus:border-[#D97706] resize-none"
+              placeholder="Catatan tambahan / barang bawaan..."
+              className={FIELD_CLASS}
             />
           </div>
+        </section>
 
-          {/* Multi Camera Section for Exit */}
-          <div className="pt-3.5 border-t border-[#E2E8F0]">
-            <MultiCameraSection
-              photos={photos}
-              onChange={setPhotos}
-              eventTitle="Kepulangan Keluar"
-            />
-          </div>
-        </div>
+        <section className="rounded-2xl border border-[#D5DDE8] bg-white p-4 shadow-sm sm:p-5">
+          <MultiCameraSection photos={photos} onChange={setPhotos} eventTitle="Kendaraan" />
+        </section>
 
-        {/* Action Button */}
-        <div className="flex items-center justify-end space-x-3">
+        <div className="rounded-2xl border border-[#D5DDE8] bg-white p-3 shadow-sm sm:p-4">
           <button
             type="submit"
             disabled={!isVehicleInside || isSubmitting}
-            className={`px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center space-x-2 transition ${
+            className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-bold transition ${
               isVehicleInside && !isSubmitting
-                ? 'bg-[#D97706] hover:bg-[#B45309] text-white shadow-md shadow-[#D97706]/25 cursor-pointer'
-                : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed border border-[#CBD5E1]'
+                ? 'cursor-pointer bg-[#15803D] text-white shadow-md shadow-[#15803D]/20 hover:bg-[#166534]'
+                : 'cursor-not-allowed border border-[#CBD5E1] bg-[#E2E8F0] text-[#94A3B8]'
             }`}
           >
-            <LogOut className="w-4 h-4" />
-            <span>
-              {isSubmitting
-                ? 'Memproses Check Out...'
-                : isVehicleInside
-                ? 'Validasi & Check Out Kendaraan'
-                : 'Plat Tidak Terdaftar di Kunjungan Aktif'}
-            </span>
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+            {isSubmitting ? 'Memproses...' : 'Konfirmasi Keluar'}
           </button>
         </div>
       </form>

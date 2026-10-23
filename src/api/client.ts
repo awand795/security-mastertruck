@@ -4,6 +4,7 @@ import {
   CheckinCandidate,
   CheckinResponse,
   ActiveInsideVehicle,
+  EmployeeItem,
   MemoKeluarItem,
   MsFoto,
 } from '../types';
@@ -48,6 +49,14 @@ export const securityApi = {
     }
   },
 
+  // 1c. Daftar karyawan aktif (sch_pos.tbl_employee) untuk dropdown PIC
+  getEmployees: async (query?: string): Promise<EmployeeItem[]> => {
+    const res = await apiClient.get('/kim3/security/employees', {
+      params: { q: query || '' }
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
   // 2. Check in vehicle (insert into sch_pos.kunjungan_masuk)
   postCheckIn: async (payload: {
     nomor_tiket: string;
@@ -56,6 +65,7 @@ export const securityApi = {
     no_polisi: string;
     nama_pengemudi: string;
     no_telepon_pengemudi: string;
+    pic_tujuan?: string;
     tipe_kunjungan: string;
     keluhan: string;
     petugas_security: string;

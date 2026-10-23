@@ -6,6 +6,7 @@ export interface KunjunganMasuk {
   no_polisi: string;
   nama_pengemudi: string;
   no_telepon_pengemudi: string;
+  pic_tujuan?: string | null;
   tipe_kunjungan: string;
   keluhan: string;
   waktu_masuk: string;
@@ -103,6 +104,7 @@ export interface ActiveInsideVehicle {
   no_polisi: string;
   nama_pengemudi: string;
   no_telepon_pengemudi: string;
+  pic_tujuan?: string | null;
   tipe_kunjungan: string;
   keluhan: string;
   waktu_masuk: string;
@@ -115,6 +117,7 @@ export interface MemoKeluarItem {
   nomor_tiket: string;
   no_polisi: string;
   nama_pengemudi: string;
+  pic_tujuan?: string | null;
   jenis_kedatangan: string;
   tipe_kunjungan: string;
   keluhan: string;
@@ -123,6 +126,15 @@ export interface MemoKeluarItem {
   petugas_security_masuk: string;
   petugas_security_keluar: string;
   catatan_keluar?: string;
+}
+
+export interface EmployeeItem {
+  id: number;
+  employeename: string;
+  employeeid?: string | null;
+  positionname?: string | null;
+  mobilenumber?: string | null;
+  isserviceadvisor?: boolean;
 }
 
 export interface DarkoPosProfile {
