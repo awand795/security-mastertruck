@@ -19,6 +19,7 @@ import {
 import { securityApi } from '../api/client';
 import { MemoKeluarItem, MsFoto } from '../types';
 import { formatPlate, normalizePlate } from '../utils/plate';
+import { formatPhotoUrl } from '../utils/image';
 import { MemoKeluarPrintModal, MemoKeluarPrintData } from '../components/security/MemoKeluarPrintModal';
 
 const InfoField: React.FC<{
@@ -43,6 +44,7 @@ export const MemoKeluarView: React.FC = () => {
   const [memoPhotos, setMemoPhotos] = useState<MsFoto[]>([]);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [zoomPhoto, setZoomPhoto] = useState<{ url: string; title: string } | null>(null);
 
   const fetchMemos = async (q?: string) => {
     try {
@@ -318,154 +320,197 @@ export const MemoKeluarView: React.FC = () => {
           role="dialog"
           aria-modal="true"
           aria-label="Detail memo keluar"
-          className="app-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 sm:p-6 backdrop-blur-xs animate-in fade-in duration-150"
         >
-          <div className="app-modal-in flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#D5DDE8] bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-3 border-b border-[#E2E8F0] bg-gradient-to-r from-[#F8FAFC] to-white p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#16A34A]/10 text-[#15803D]">
-                  <FileText className="h-5 w-5" />
+          <div className="flex min-h-full items-center justify-center py-4">
+            <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#D5DDE8] bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+              {/* Header Pinned */}
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#E2E8F0] bg-gradient-to-r from-[#F8FAFC] to-white p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#16A34A]/10 text-[#15803D]">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#0F172A] sm:text-base">
+                      Detail Memo Keluar & Gate Pass
+                    </h3>
+                    <p className="mt-0.5 font-mono text-[11px] font-semibold text-[#15803D]">
+                      {selectedMemo.nomor_memo || selectedMemo.nomor_tiket}
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={handleCloseDetail}
+                  title="Tutup"
+                  className="cursor-pointer rounded-lg p-1.5 text-[#64748B] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Body Scrollable */}
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+                <div className="rounded-xl border border-[#16A34A]/20 bg-gradient-to-r from-[#F0FDF4] to-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#15803D]">
+                        Kendaraan Keluar
+                      </p>
+                      <p className="mt-1 font-mono text-2xl font-bold tracking-[0.12em] text-[#0F172A]">
+                        {formatPlate(selectedMemo.no_polisi)}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#16A34A]/25 bg-[#DCFCE7] px-3 py-1 text-[10px] font-bold text-[#15803D]">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Selesai & Keluar
+                    </span>
+                  </div>
+                </div>
+
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:grid-cols-3">
+                  <InfoField label="PIC / Tujuan" icon={User}>
+                    {selectedMemo.pic_tujuan || selectedMemo.nama_pengemudi}
+                  </InfoField>
+                  <InfoField label="Pengemudi" icon={Truck}>
+                    {selectedMemo.nama_pengemudi}
+                  </InfoField>
+                  <InfoField label="Jenis Masuk" icon={Truck}>
+                    {selectedMemo.jenis_kedatangan}
+                  </InfoField>
+                  <InfoField label="Tujuan" icon={ClipboardList}>
+                    {selectedMemo.tipe_kunjungan}
+                  </InfoField>
+                  <InfoField label="Waktu Masuk" icon={Clock}>
+                    {selectedMemo.waktu_masuk}
+                  </InfoField>
+                  <InfoField label="Waktu Keluar" icon={Clock}>
+                    <span className="text-[#15803D]">{selectedMemo.waktu_check_out}</span>
+                  </InfoField>
+                  <InfoField label="Petugas Keluar" icon={ShieldCheck}>
+                    {selectedMemo.petugas_security_keluar}
+                  </InfoField>
+                  <InfoField label="No. Memo Keluar" icon={Hash}>
+                    <span className="font-mono font-bold text-[#15803D]">
+                      {selectedMemo.nomor_memo || selectedMemo.nomor_tiket}
+                    </span>
+                  </InfoField>
+                  <InfoField label="No. Tiket Masuk" icon={FileText}>
+                    <span className="font-mono text-[#64748B]">{selectedMemo.nomor_tiket}</span>
+                  </InfoField>
+                </dl>
+
+                {selectedMemo.catatan_keluar && (
+                  <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5 text-xs">
+                    <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.1em] text-[#94A3B8]">
+                      Catatan Pemeriksaan Gerbang
+                    </span>
+                    <span className="font-semibold leading-relaxed text-[#0F172A]">
+                      {selectedMemo.catatan_keluar}
+                    </span>
+                  </div>
+                )}
+
+                {/* Photo Evidence */}
                 <div>
-                  <h3 className="text-sm font-bold text-[#0F172A] sm:text-base">
-                    Detail Memo Keluar & Gate Pass
-                  </h3>
-                  <p className="mt-0.5 font-mono text-[11px] font-semibold text-[#64748B]">
-                    {selectedMemo.nomor_tiket}
-                  </p>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <h4 className="flex items-center gap-1.5 text-xs font-bold text-[#0F172A]">
+                      <ImageIcon className="h-3.5 w-3.5 text-[#12388F]" />
+                      Dokumentasi Foto ({memoPhotos.length})
+                    </h4>
+                  </div>
+                  {isLoadingPhotos ? (
+                    <div className="flex items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-6 text-xs text-[#64748B]">
+                      <Loader2 className="h-4 w-4 animate-spin text-[#12388F]" />
+                      Memuat foto...
+                    </div>
+                  ) : memoPhotos.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-5 text-center text-xs text-[#64748B]">
+                      Tidak ada foto terlampir.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      {memoPhotos.map((f, idx) => {
+                        const imgUrl = formatPhotoUrl(f.foto_data);
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => imgUrl && setZoomPhoto({ url: imgUrl, title: f.sudut_pandang })}
+                            className="group cursor-pointer overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm transition hover:border-[#12388F]/40 hover:shadow-md"
+                          >
+                            <div className="relative aspect-video w-full overflow-hidden bg-slate-100">
+                              <img
+                                src={imgUrl}
+                                alt={f.sudut_pandang}
+                                className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+                                onError={(e) => {
+                                  // Fallback jika decode gagal
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            </div>
+                            <div className="border-t border-[#E2E8F0] p-2 text-center">
+                              <p className="truncate text-[10px] font-bold text-[#0F172A]">
+                                {f.sudut_pandang}
+                              </p>
+                              <p className="text-[9px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                                {f.jenis_event}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Footer Pinned */}
+              <div className="flex shrink-0 items-center justify-between gap-3 border-t border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:p-5">
+                <button
+                  type="button"
+                  onClick={handleCloseDetail}
+                  className="cursor-pointer rounded-xl px-4 py-2.5 text-xs font-semibold text-[#64748B] transition hover:bg-[#E2E8F0] hover:text-[#0F172A]"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPrintModalOpen(true)}
+                  className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#12388F] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-[#12388F]/25 transition hover:bg-[#0D2A6B]"
+                >
+                  <Printer className="h-4 w-4" />
+                  <span>Cetak Memo Keluar & Gate Pass</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Zoom Foto */}
+      {zoomPhoto && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setZoomPhoto(null)}
+          className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in"
+        >
+          <div className="relative max-h-[90vh] max-w-3xl overflow-hidden rounded-2xl bg-white p-2 shadow-2xl">
+            <div className="flex items-center justify-between p-2">
+              <span className="text-xs font-bold text-slate-800">{zoomPhoto.title}</span>
               <button
-                onClick={handleCloseDetail}
-                title="Tutup"
-                className="cursor-pointer rounded-lg p-1.5 text-[#64748B] transition hover:bg-[#F1F5F9] hover:text-[#0F172A]"
+                type="button"
+                onClick={() => setZoomPhoto(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-
-            <div className="space-y-5 overflow-y-auto p-5 sm:p-6">
-              <div className="rounded-xl border border-[#16A34A]/20 bg-gradient-to-r from-[#F0FDF4] to-white p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#15803D]">
-                      Kendaraan Keluar
-                    </p>
-                    <p className="mt-1 font-mono text-2xl font-bold tracking-[0.12em] text-[#0F172A]">
-                      {formatPlate(selectedMemo.no_polisi)}
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#16A34A]/25 bg-[#DCFCE7] px-3 py-1 text-[10px] font-bold text-[#15803D]">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Selesai & Keluar
-                  </span>
-                </div>
-              </div>
-
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:grid-cols-3">
-                <InfoField label="PIC / Tujuan" icon={User}>
-                  {selectedMemo.pic_tujuan || selectedMemo.nama_pengemudi}
-                </InfoField>
-                <InfoField label="Pengemudi" icon={Truck}>
-                  {selectedMemo.nama_pengemudi}
-                </InfoField>
-                <InfoField label="Jenis Masuk" icon={Truck}>
-                  {selectedMemo.jenis_kedatangan}
-                </InfoField>
-                <InfoField label="Tujuan" icon={ClipboardList}>
-                  {selectedMemo.tipe_kunjungan}
-                </InfoField>
-                <InfoField label="Waktu Masuk" icon={Clock}>
-                  {selectedMemo.waktu_masuk}
-                </InfoField>
-                <InfoField label="Waktu Keluar" icon={Clock}>
-                  <span className="text-[#15803D]">{selectedMemo.waktu_check_out}</span>
-                </InfoField>
-                <InfoField label="Petugas Keluar" icon={ShieldCheck}>
-                  {selectedMemo.petugas_security_keluar}
-                </InfoField>
-                <InfoField label="No. Memo Keluar" icon={Hash}>
-                  <span className="font-mono font-bold text-[#15803D]">
-                    {selectedMemo.nomor_memo || selectedMemo.nomor_tiket}
-                  </span>
-                </InfoField>
-                <InfoField label="No. Tiket Masuk" icon={FileText}>
-                  <span className="font-mono text-[#64748B]">{selectedMemo.nomor_tiket}</span>
-                </InfoField>
-              </dl>
-
-              {selectedMemo.catatan_keluar && (
-                <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5 text-xs">
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.1em] text-[#94A3B8]">
-                    Catatan Pemeriksaan Gerbang
-                  </span>
-                  <span className="font-semibold leading-relaxed text-[#0F172A]">
-                    {selectedMemo.catatan_keluar}
-                  </span>
-                </div>
-              )}
-
-              {/* Photo Evidence */}
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h4 className="flex items-center gap-1.5 text-xs font-bold text-[#0F172A]">
-                    <ImageIcon className="h-3.5 w-3.5 text-[#12388F]" />
-                    Dokumentasi Foto ({memoPhotos.length})
-                  </h4>
-                </div>
-                {isLoadingPhotos ? (
-                  <div className="flex items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-6 text-xs text-[#64748B]">
-                    <Loader2 className="h-4 w-4 animate-spin text-[#12388F]" />
-                    Memuat foto...
-                  </div>
-                ) : memoPhotos.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] p-5 text-center text-xs text-[#64748B]">
-                    Tidak ada foto terlampir.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {memoPhotos.map((f, idx) => (
-                      <div
-                        key={idx}
-                        className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-sm"
-                      >
-                        <img
-                          src={f.foto_data}
-                          alt={f.sudut_pandang}
-                          className="aspect-video w-full object-cover"
-                        />
-                        <div className="border-t border-[#E2E8F0] p-2 text-center">
-                          <p className="truncate text-[10px] font-bold text-[#0F172A]">
-                            {f.sudut_pandang}
-                          </p>
-                          <p className="text-[9px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-                            {f.jenis_event}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 border-t border-[#E2E8F0] bg-[#F8FAFC] p-4 sm:p-5">
-              <button
-                type="button"
-                onClick={handleCloseDetail}
-                className="cursor-pointer rounded-xl px-4 py-2.5 text-xs font-semibold text-[#64748B] transition hover:bg-[#E2E8F0] hover:text-[#0F172A]"
-              >
-                Tutup
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsPrintModalOpen(true)}
-                className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#12388F] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-[#12388F]/25 transition hover:bg-[#0D2A6B]"
-              >
-                <Printer className="h-4 w-4" />
-                <span>Cetak Memo Keluar (Thermal 80mm)</span>
-              </button>
-            </div>
+            <img
+              src={zoomPhoto.url}
+              alt={zoomPhoto.title}
+              className="max-h-[75vh] w-auto rounded-lg object-contain"
+            />
           </div>
         </div>
       )}
