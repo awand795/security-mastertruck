@@ -29,17 +29,17 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="app-layout min-h-screen bg-[#EEF2F7] flex flex-col font-sans text-[#0F172A] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
+    <div className="app-layout min-h-screen bg-[#EEF2F7] flex flex-col font-sans text-[#0F172A] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
       {/* Top Navbar Header (Theme Web Fleet) */}
       <Navbar activeTab={activeTab} onChangeTab={setActiveTab} />
 
       <div className="flex flex-1 w-full overflow-hidden">
-        {/* Desktop Sidebar (Theme Web Fleet) */}
+        {/* Desktop Sidebar (Theme Web Fleet, Layar >= 1024px) */}
         <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} />
 
         {/* Main Content Dashboard Area */}
         <main className="dashboard-page flex-1 overflow-y-auto max-h-[calc(100vh-64px)] bg-[#EEF2F7]">
-          <div className="max-w-[1400px] mx-auto px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-7">
+          <div className="max-w-[1400px] mx-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
             <div key={activeTab} className="app-page-transition w-full">
               {renderActiveView()}
             </div>
@@ -47,7 +47,7 @@ export const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Floating Bottom Nav for Smartphone Viewport (< 768px) Identik Web Fleet */}
+      {/* Floating Bottom Nav for Mobile & Tablet Viewport (< 1024px) */}
       <MobileBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
     </div>
   );

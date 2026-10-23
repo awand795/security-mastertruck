@@ -34,10 +34,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ activeTab, onC
   return (
     <nav
       aria-label="Navigasi Utama Pos Gerbang"
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface-raised border-t border-[#CBD5E1] dark:border-border font-sans shadow-[0_-4px_16px_rgba(15,23,42,0.06)]"
+      className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#CBD5E1] font-sans shadow-[0_-4px_16px_rgba(15,23,42,0.06)]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      <div className="grid grid-cols-3 h-16 max-w-lg mx-auto px-1">
+      <div className="grid grid-cols-3 h-16 max-w-xl mx-auto px-2">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

@@ -49,28 +49,28 @@ export const MemoKeluarView: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-5">
       {/* Top Banner */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center space-x-2.5">
             <div className="p-2 rounded-xl bg-[#16A34A]/10 text-[#16A34A]">
-              <FileText className="w-5 h-5" />
+              <FileText className="w-4 h-4" />
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Arsip Memo Keluar & Gate Pass</h2>
+            <h2 className="text-sm sm:text-base font-bold text-[#0F172A]">Arsip Memo Keluar & Gate Pass</h2>
           </div>
-          <p className="text-xs text-[#64748B] mt-1">
+          <p className="text-[11px] sm:text-xs text-[#64748B] mt-0.5">
             Daftar kendaraan armada yang telah menyelesaikan seluruh tahapan dan di-check out oleh pos gerbang.
           </p>
         </div>
 
         {/* Search Input */}
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 text-[#64748B] absolute left-3 top-3" />
+        <div className="relative w-full sm:w-60">
+          <Search className="w-3.5 h-3.5 text-[#64748B] absolute left-3 top-2.5" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Cari plat atau tiket..."
-            className="w-full pl-9 pr-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F]"
+            className="w-full pl-8 pr-3 py-1.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F]"
           />
         </div>
       </div>

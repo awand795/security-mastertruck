@@ -191,35 +191,35 @@ export const CheckOutView: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       {/* Top Banner */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs flex items-center space-x-3">
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-4 sm:p-5 shadow-xs flex items-center space-x-3">
         <div className="p-2.5 rounded-xl bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/20">
           <LogOut className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Pemeriksaan Kendaraan Keluar (Check Out)</h2>
-          <p className="text-xs text-[#64748B] mt-0.5">
+          <h2 className="text-sm sm:text-base font-bold text-[#0F172A]">Pemeriksaan Kendaraan Keluar (Check Out)</h2>
+          <p className="text-[11px] sm:text-xs text-[#64748B] mt-0.5">
             Validasi fisik unit armada yang sedang berada di dalam area bengkel sebelum meninggalkan gerbang pos.
           </p>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-3 text-xs text-[#DC2626]">
+        <div className="p-3.5 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-2.5 text-xs text-[#DC2626]">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Main Check-Out Form */}
-      <form onSubmit={handleSubmitCheckOut} className="space-y-5">
-        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-7 shadow-xs space-y-5">
+      <form onSubmit={handleSubmitCheckOut} className="space-y-4">
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
           {/* Plat Nomor Polisi Autocomplete against Active Inside */}
           <div className="relative">
-            <label className="block text-xs font-bold text-[#0F172A] mb-1.5">
-              Nomor Polisi Unit Keluar <span className="text-[#D97706] font-semibold">(Hanya Unit yang di Dalam Bengkel)</span>
+            <label className="block text-xs font-semibold text-[#0F172A] mb-1">
+              Nomor Polisi Unit Keluar <span className="text-[#D97706] font-normal">(Unit Aktif di Bengkel)</span>
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#64748B]">
                 <Search className="w-4 h-4" />
               </div>
               <input
@@ -234,8 +234,8 @@ export const CheckOutView: React.FC = () => {
                   }
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Ketik plat nomor... Contoh: BK 9393 ER"
-                className="w-full pl-10 pr-24 py-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-base font-mono font-bold tracking-wider text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#D97706] focus:ring-2 focus:ring-[#D97706]/20 uppercase transition"
+                placeholder="Cari plat unit di bengkel..."
+                className="w-full pl-9 pr-20 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm font-mono font-semibold tracking-wider text-[#0F172A] placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:tracking-normal placeholder:text-[#94A3B8] focus:outline-none focus:border-[#D97706] focus:ring-1 focus:ring-[#D97706]/20 uppercase transition"
               />
               {isSearching && (
                 <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-[#64748B]">
@@ -315,20 +315,20 @@ export const CheckOutView: React.FC = () => {
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
+            <label className="block text-xs font-semibold text-[#0F172A] mb-1">
               Catatan Pemeriksaan Keluar (Opsional)
             </label>
             <textarea
               rows={2}
               value={catatanKeluar}
               onChange={(e) => setCatatanKeluar(e.target.value)}
-              placeholder="Kelengkapan surat kendaraan, kondisi fisik saat meninggalkan bengkel..."
-              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] focus:outline-none focus:border-[#D97706] resize-none"
+              placeholder="Catatan fisik keluar / surat kendaraan (opsional)"
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] placeholder:text-xs placeholder:text-[#94A3B8] focus:outline-none focus:border-[#D97706] resize-none"
             />
           </div>
 
           {/* Multi Camera Section for Exit */}
-          <div className="pt-4 border-t border-[#E2E8F0]">
+          <div className="pt-3.5 border-t border-[#E2E8F0]">
             <MultiCameraSection
               photos={photos}
               onChange={setPhotos}
@@ -338,13 +338,13 @@ export const CheckOutView: React.FC = () => {
         </div>
 
         {/* Action Button */}
-        <div className="flex items-center justify-end space-x-4">
+        <div className="flex items-center justify-end space-x-3">
           <button
             type="submit"
             disabled={!isVehicleInside || isSubmitting}
-            className={`px-8 py-3.5 rounded-xl font-bold text-sm flex items-center space-x-2 transition ${
+            className={`px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center space-x-2 transition ${
               isVehicleInside && !isSubmitting
-                ? 'bg-[#D97706] hover:bg-[#B45309] text-white shadow-lg shadow-[#D97706]/25 cursor-pointer'
+                ? 'bg-[#D97706] hover:bg-[#B45309] text-white shadow-md shadow-[#D97706]/25 cursor-pointer'
                 : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed border border-[#CBD5E1]'
             }`}
           >
@@ -354,7 +354,7 @@ export const CheckOutView: React.FC = () => {
                 ? 'Memproses Check Out...'
                 : isVehicleInside
                 ? 'Validasi & Check Out Kendaraan'
-                : 'Plat Tidak Ada di Kunjungan Masuk (Disabled)'}
+                : 'Plat Tidak Terdaftar di Kunjungan Aktif'}
             </span>
           </button>
         </div>

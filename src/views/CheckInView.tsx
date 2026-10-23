@@ -378,36 +378,36 @@ export const CheckInView: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       {/* Top Banner Header */}
-      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs flex items-center space-x-3.5">
-        <div className="p-3 rounded-xl bg-[#12388F]/10 text-[#12388F]">
-          <LogIn className="w-6 h-6" />
+      <div className="bg-white border border-[#CBD5E1] rounded-2xl p-4 sm:p-5 shadow-xs flex items-center space-x-3">
+        <div className="p-2.5 rounded-xl bg-[#12388F]/10 text-[#12388F]">
+          <LogIn className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-base sm:text-lg font-bold text-[#0F172A]">Pemeriksaan Kendaraan Masuk (Check In)</h2>
-          <p className="text-xs text-[#64748B] mt-0.5">
+          <h2 className="text-sm sm:text-base font-bold text-[#0F172A]">Pemeriksaan Kendaraan Masuk (Check In)</h2>
+          <p className="text-[11px] sm:text-xs text-[#64748B] mt-0.5">
             Sistem otomatis mendeteksi apakah kendaraan memiliki jadwal Booking, unit Member terdaftar, atau Walk-In.
           </p>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-3 text-xs text-[#DC2626]">
+        <div className="p-3.5 rounded-xl bg-[#FEE2E2] border border-[#DC2626]/30 flex items-start space-x-2.5 text-xs text-[#DC2626]">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {/* Main Check-In Form */}
-      <form onSubmit={handleSubmitCheckIn} className="space-y-5">
-        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-7 shadow-xs space-y-5">
+      <form onSubmit={handleSubmitCheckIn} className="space-y-4">
+        <div className="bg-white border border-[#CBD5E1] rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
           
           {/* Input Nomor Polisi Universal */}
           <div className="relative">
-            <label className="block text-xs font-bold text-[#0F172A] mb-1.5">
+            <label className="block text-xs font-semibold text-[#0F172A] mb-1">
               Nomor Polisi Kendaraan Masuk
             </label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#64748B]">
                 <Search className="w-4 h-4" />
               </div>
               <input
@@ -416,12 +416,12 @@ export const CheckInView: React.FC = () => {
                 value={plateInput}
                 onChange={(e) => handlePlateInputChange(e.target.value)}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Ketik plat nomor... Contoh: BK 9393 ER"
-                className="w-full pl-10 pr-24 py-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-base font-mono font-bold tracking-wider text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F] focus:ring-2 focus:ring-[#12388F]/20 uppercase transition"
+                placeholder="Contoh: BK 1234 ABC"
+                className="w-full pl-9 pr-24 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm font-mono font-semibold tracking-wider text-[#0F172A] placeholder:font-sans placeholder:text-xs placeholder:font-normal placeholder:tracking-normal placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F] focus:ring-1 focus:ring-[#12388F]/20 uppercase transition"
               />
               {isSearching && (
                 <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-xs text-[#64748B]">
-                  Memeriksa data...
+                  Memeriksa...
                 </div>
               )}
             </div>
@@ -649,13 +649,13 @@ export const CheckInView: React.FC = () => {
           </div>
 
           {/* Form Fields: Driver & Service */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1">
                 Nama Pengemudi / Driver <span className="text-[#DC2626]">*</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#64748B]">
                   <User className="w-4 h-4" />
                 </div>
                 <input
@@ -663,38 +663,38 @@ export const CheckInView: React.FC = () => {
                   required
                   value={namaPengemudi}
                   onChange={(e) => setNamaPengemudi(e.target.value)}
-                  placeholder="Nama lengkap pengemudi"
-                  className="w-full pl-10 pr-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
+                  placeholder="Nama supir"
+                  className="w-full pl-9 pr-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs sm:text-sm text-[#0F172A] placeholder:text-xs placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1">
                 No. Telepon / WhatsApp Driver
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#64748B]">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#64748B]">
                   <Phone className="w-4 h-4" />
                 </div>
                 <input
                   type="tel"
                   value={noTelpPengemudi}
                   onChange={(e) => setNoTelpPengemudi(e.target.value)}
-                  placeholder="0812xxxxxxx"
-                  className="w-full pl-10 pr-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
+                  placeholder="08xxxxxxxxxx"
+                  className="w-full pl-9 pr-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs sm:text-sm text-[#0F172A] placeholder:text-xs placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1">
                 Tipe Kunjungan
               </label>
               <select
                 value={tipeKunjungan}
                 onChange={(e) => setTipeKunjungan(e.target.value)}
-                className="w-full px-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs sm:text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
               >
                 <option value="Service Berkala">Service Berkala</option>
                 <option value="Perbaikan Ringan">Perbaikan Ringan</option>
@@ -706,34 +706,34 @@ export const CheckInView: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
+              <label className="block text-xs font-semibold text-[#0F172A] mb-1">
                 Keluhan Driver / Rencana Servis
               </label>
               <input
                 type="text"
                 value={keluhan}
                 onChange={(e) => setKeluhan(e.target.value)}
-                placeholder="Contoh: Ganti Oli Mesin & Filter"
-                className="w-full px-3 py-2.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-sm text-[#0F172A] focus:outline-none focus:border-[#12388F]"
+                placeholder="Ganti oli, rem, dll."
+                className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs sm:text-sm text-[#0F172A] placeholder:text-xs placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F]"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#0F172A] mb-1.5">
+            <label className="block text-xs font-semibold text-[#0F172A] mb-1">
               Catatan Khusus Security Masuk (Opsional)
             </label>
             <textarea
               rows={2}
               value={catatanMasuk}
               onChange={(e) => setCatatanMasuk(e.target.value)}
-              placeholder="Catatan barang bawaan armada, kondisi fisik bodi atau petunjuk pos..."
-              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] focus:outline-none focus:border-[#12388F] resize-none"
+              placeholder="Catatan fisik / barang bawaan (opsional)"
+              className="w-full px-3 py-2 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-xs text-[#0F172A] placeholder:text-xs placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F] resize-none"
             />
           </div>
 
           {/* Multi Camera Section */}
-          <div className="pt-4 border-t border-[#E2E8F0]">
+          <div className="pt-3.5 border-t border-[#E2E8F0]">
             <MultiCameraSection
               photos={photos}
               onChange={setPhotos}
@@ -743,11 +743,11 @@ export const CheckInView: React.FC = () => {
         </div>
 
         {/* Submit Actions */}
-        <div className="flex items-center justify-end space-x-4">
+        <div className="flex items-center justify-end space-x-3">
           <button
             type="submit"
             disabled={!canSubmit() || isSubmitting}
-            className={`px-8 py-3.5 rounded-xl font-bold text-sm flex items-center space-x-2 transition ${
+            className={`px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm flex items-center space-x-2 transition ${
               canSubmit() && !isSubmitting
                 ? 'bg-[#12388F] hover:bg-[#0D2A6B] text-white shadow-lg shadow-[#12388F]/25 cursor-pointer'
                 : 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed border border-[#CBD5E1]'
