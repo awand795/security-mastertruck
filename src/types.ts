@@ -114,6 +114,7 @@ export interface ActiveInsideVehicle {
 
 export interface MemoKeluarItem {
   id: number;
+  nomor_memo?: string;
   nomor_tiket: string;
   no_polisi: string;
   nama_pengemudi: string;

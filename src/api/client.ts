@@ -104,14 +104,20 @@ export const securityApi = {
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  // 5. Check out vehicle (set waktu_check_out = NOW())
+  // 5. Check out vehicle (set waktu_check_out = NOW() & terbitkan nomor_memo)
   postCheckOut: async (payload: {
     id: number;
     petugas_security_keluar: string;
     catatan_keluar?: string;
-  }) => {
+  }): Promise<any> => {
     const res = await apiClient.post('/kim3/security/check-out', payload);
-    return res.data;
+    const body = res.data;
+    const unwrapped =
+      body && typeof body === 'object' && !Array.isArray(body) && 'data' in body
+        ? (body as { data: unknown }).data
+        : body;
+    const raw = Array.isArray(unwrapped) ? unwrapped[0] : unwrapped;
+    return raw;
   },
 
   // 6. Get memo keluar (checkout history)

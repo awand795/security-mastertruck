@@ -64,6 +64,7 @@ export const CheckOutView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMemo, setSuccessMemo] = useState<{
     id: number;
+    nomor_memo: string;
     nomor_tiket: string;
     no_polisi: string;
     nama_pengemudi: string;
@@ -109,7 +110,7 @@ export const CheckOutView: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await securityApi.postCheckOut({
+      const checkOutRes = await securityApi.postCheckOut({
         id: selectedVehicle.id,
         petugas_security_keluar: currentUser?.nama || 'Pos Security KIM 3',
         catatan_keluar: catatanKeluar.trim() || undefined,
@@ -134,6 +135,7 @@ export const CheckOutView: React.FC = () => {
 
       setSuccessMemo({
         id: selectedVehicle.id,
+        nomor_memo: checkOutRes?.nomor_memo || `MK-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`,
         nomor_tiket: selectedVehicle.nomor_tiket,
         no_polisi: selectedVehicle.no_polisi,
         nama_pengemudi: selectedVehicle.nama_pengemudi,
@@ -187,7 +189,13 @@ export const CheckOutView: React.FC = () => {
               <dt className="flex items-center gap-1.5 text-[#64748B]">
                 <Hash className="h-3.5 w-3.5" /> No. Memo Keluar
               </dt>
-              <dd className="font-mono font-bold text-[#15803D]">{successMemo.nomor_tiket}</dd>
+              <dd className="font-mono font-bold text-[#15803D]">{successMemo.nomor_memo}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-[#64748B]">
+                <FileCheck className="h-3.5 w-3.5" /> No. Tiket Masuk
+              </dt>
+              <dd className="font-mono text-[#64748B]">{successMemo.nomor_tiket}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="flex items-center gap-1.5 text-[#64748B]">

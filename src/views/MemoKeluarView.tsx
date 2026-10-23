@@ -178,9 +178,14 @@ export const MemoKeluarView: React.FC = () => {
                       <p className="font-mono text-base font-bold tracking-[0.08em] text-[#0F172A]">
                         {formatPlate(memo.no_polisi)}
                       </p>
-                      <p className="mt-0.5 font-mono text-[10px] font-bold text-[#12388F]">
-                        {memo.nomor_tiket}
+                      <p className="mt-0.5 font-mono text-xs font-bold text-[#15803D]">
+                        {memo.nomor_memo || memo.nomor_tiket}
                       </p>
+                      {memo.nomor_memo && (
+                        <p className="font-mono text-[10px] text-[#64748B]">
+                          Tiket: {memo.nomor_tiket}
+                        </p>
+                      )}
                     </div>
                     <span
                       className={`max-w-[45%] shrink-0 truncate rounded-full border px-2 py-0.5 text-[10px] font-bold ${
@@ -247,8 +252,17 @@ export const MemoKeluarView: React.FC = () => {
                 <tbody className="divide-y divide-[#F1F5F9]">
                   {memoList.map((memo) => (
                     <tr key={memo.id} className="transition hover:bg-[#F8FAFC]">
-                      <td className="p-3.5 pl-5 font-mono font-bold text-[#12388F]">
-                        {memo.nomor_tiket}
+                      <td className="p-3.5 pl-5">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-bold text-[#15803D]">
+                            {memo.nomor_memo || memo.nomor_tiket}
+                          </span>
+                          {memo.nomor_memo && (
+                            <span className="font-mono text-[10px] text-[#64748B]">
+                              Tiket: {memo.nomor_tiket}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3.5">
                         <span className="inline-flex rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-1 font-mono text-sm font-bold tracking-wide text-[#0F172A]">
@@ -369,7 +383,12 @@ export const MemoKeluarView: React.FC = () => {
                   {selectedMemo.petugas_security_keluar}
                 </InfoField>
                 <InfoField label="No. Memo Keluar" icon={Hash}>
-                  <span className="font-mono text-[#12388F]">{selectedMemo.nomor_tiket}</span>
+                  <span className="font-mono font-bold text-[#15803D]">
+                    {selectedMemo.nomor_memo || selectedMemo.nomor_tiket}
+                  </span>
+                </InfoField>
+                <InfoField label="No. Tiket Masuk" icon={FileText}>
+                  <span className="font-mono text-[#64748B]">{selectedMemo.nomor_tiket}</span>
                 </InfoField>
               </dl>
 
