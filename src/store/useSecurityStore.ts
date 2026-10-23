@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SecurityUser, DarkoPosProfile } from '../types';
+import { securityApi } from '../api/client';
 
 interface SecurityStore {
   user: SecurityUser | null;
@@ -15,12 +16,12 @@ interface SecurityStore {
 
 export const useSecurityStore = create<SecurityStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       idToken: null,
       profile: null,
       isAuthenticated: false,
-      tunnelBaseUrl: localStorage.getItem('DARKOPOS_TUNNEL_URL') || import.meta.env.VITE_DARKOPOS_BASE_URL || '',
+      tunnelBaseUrl: localStorage.getItem('DARKOPOS_TUNNEL_URL') || import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com',
       login: (user, token, profile) =>
         set({
           user,
@@ -28,13 +29,18 @@ export const useSecurityStore = create<SecurityStore>()(
           profile: profile || user.profile || null,
           isAuthenticated: true,
         }),
-      logout: () =>
+      logout: () => {
+        const { idToken, profile, tunnelBaseUrl } = get();
+        if (idToken) {
+          securityApi.logoutDarkoPos(idToken, profile?.sessionid, tunnelBaseUrl);
+        }
         set({
           user: null,
           idToken: null,
           profile: null,
           isAuthenticated: false,
-        }),
+        });
+      },
       setTunnelBaseUrl: (url: string) => {
         localStorage.setItem('DARKOPOS_TUNNEL_URL', url.trim());
         set({ tunnelBaseUrl: url.trim() });

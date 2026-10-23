@@ -55,16 +55,37 @@ export const LoginSecurity: React.FC = () => {
     try {
       // 1. Coba panggil real API DarkoPOS jika tunnel / base url sudah ada
       if (tunnelBaseUrl && tunnelBaseUrl.trim() !== '') {
-        const res = await securityApi.loginDarkoPos(
-          {
-            userid: cleanId,
-            password: password,
-            company: 'BENGKEL MASTER TRUK',
-          },
-          tunnelBaseUrl.trim()
-        );
+        let res;
+        try {
+          res = await securityApi.loginDarkoPos(
+            {
+              userid: cleanId,
+              password: password,
+              company: 'BENGKEL MASTER TRUK',
+            },
+            tunnelBaseUrl.trim()
+          );
+        } catch (eComp: any) {
+          if (eComp.response?.status === 401) {
+            // Coba fallback tanpa company jika server DarkoPOS dev memakai empty company
+            try {
+              res = await securityApi.loginDarkoPos(
+                {
+                  userid: cleanId,
+                  password: password,
+                  company: '',
+                },
+                tunnelBaseUrl.trim()
+              );
+            } catch {
+              throw eComp;
+            }
+          } else {
+            throw eComp;
+          }
+        }
 
-        if (res.success && res.profile) {
+        if (res && res.success && res.profile) {
           login(
             {
               id: res.profile.userid || 'sec_' + Date.now(),
@@ -80,7 +101,7 @@ export const LoginSecurity: React.FC = () => {
           );
           return;
         } else {
-          setErrorMsg(res.message || 'Login gagal. Periksa User ID dan Password Anda.');
+          setErrorMsg(res?.message || 'Login gagal. Periksa User ID dan Password Anda.');
           return;
         }
       }

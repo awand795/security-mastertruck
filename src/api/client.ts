@@ -151,5 +151,29 @@ export const securityApi = {
 
     return response.data;
   },
+
+  // 9. DarkoPOS Logout (/api/v1/users/logout)
+  logoutDarkoPos: async (idToken?: string | null, sessionId?: string | null, customBaseUrl?: string) => {
+    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || '').replace(/\/+$/, '');
+    if (!baseUrl || !idToken) return;
+
+    try {
+      await axios.post(
+        `${baseUrl}/api/v1/users/logout`,
+        {
+          sessionId: sessionId || '',
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `JWT ${idToken}`,
+          },
+          timeout: 6000,
+        }
+      );
+    } catch (err) {
+      console.warn('DarkoPOS API logout warning:', err);
+    }
+  },
 };
 
