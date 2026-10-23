@@ -1,5 +1,12 @@
 import axios from 'axios';
-import { BookingConfirmedItem, ActiveInsideVehicle, MemoKeluarItem, MsFoto } from '../types';
+import {
+  BookingConfirmedItem,
+  CheckinCandidate,
+  CheckinResponse,
+  ActiveInsideVehicle,
+  MemoKeluarItem,
+  MsFoto,
+} from '../types';
 
 const API_BASE = '/api';
 const API_KEY = 'KIM3-SECURE-TOKEN-2026-X998A7B6C';
@@ -16,6 +23,14 @@ export const securityApi = {
   // 1. Get bookings (all statuses for checking confirmation)
   searchConfirmedBookings: async (query?: string): Promise<BookingConfirmedItem[]> => {
     const res = await apiClient.get('/kim3/security/booking-confirmed', {
+      params: { q: query || '' }
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  // 1a. Unified live-search candidates (active bookings + registered member units)
+  searchCheckinCandidates: async (query?: string): Promise<CheckinCandidate[]> => {
+    const res = await apiClient.get('/kim3/security/checkin-candidates', {
       params: { q: query || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
@@ -43,11 +58,21 @@ export const securityApi = {
     no_telepon_pengemudi: string;
     tipe_kunjungan: string;
     keluhan: string;
-    petugas_security_masuk: string;
+    petugas_security: string;
     catatan_masuk?: string;
-  }) => {
+  }): Promise<CheckinResponse> => {
     const res = await apiClient.post('/kim3/security/check-in', payload);
-    return res.data;
+    // API Builder membungkus result set POST dalam { data: ... }.
+    const body = res.data;
+    const unwrapped =
+      body && typeof body === 'object' && !Array.isArray(body) && 'data' in body
+        ? (body as { data: unknown }).data
+        : body;
+    const raw = Array.isArray(unwrapped) ? unwrapped[0] : unwrapped;
+    return (raw || {
+      success: false,
+      message: 'Respons check-in tidak valid dari server.',
+    }) as CheckinResponse;
   },
 
   // 3. Save photo to sch_pos.ms_foto

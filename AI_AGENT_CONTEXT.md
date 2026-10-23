@@ -96,9 +96,9 @@ Semua endpoint berikut dilayani oleh API Builder pada host `http://94.237.69.119
 
 | No | Endpoint Path | Method | Fungsi & SQL Logic |
 |---|---|---|---|
-| 1 | `/kim3/security/booking-confirmed` | `GET` | Mengambil seluruh daftar booking aktif (diurutkan berdasarkan status `CONFIRMED` & `PENDING`) untuk live matching nomor polisi di form Check In. |
-| 2 | `/kim3/kendaraan-lookup` | `GET` | Lookup unit armada dari `sch_pos.tbl_member_unit` / `sch_fleet.v_kendaraan_lookup` berdasarkan nopol. |
-| 3 | `/kim3/security/check-in` | `POST` | Merekam kedatangan armada baru ke `sch_pos.kunjungan_masuk`. Menghasilkan tiket kunjungan. |
+| 1 | `/kim3/security/checkin-candidates` | `GET` | Live search gabungan: booking aktif dari `sch_fleet.v_security_booking_active` + unit terdaftar dari `sch_fleet.v_kendaraan_lookup`. Menampilkan status confirmed/unconfirmed, booking lewat H-1, dan badge unit nonaktif. |
+| 2 | `/kim3/kendaraan-lookup` | `GET` | Lookup unit armada dari `sch_pos.tbl_member_unit` / `sch_fleet.v_kendaraan_lookup` berdasarkan nopol (legacy, tetap tersedia). |
+| 3 | `/kim3/security/check-in` | `POST` | Merekam kedatangan ke `sch_pos.kunjungan_masuk` dengan validasi server-side: booking wajib confirmed, masih dalam window H-1, plat harus cocok, dan walk-in ditolak bila plat masih punya booking aktif. |
 | 4 | `/kim3/security/add-foto` | `POST` | Menyimpan dokumentasi fisik kendaraan ke `sch_pos.ms_foto`. |
 | 5 | `/kim3/security/active-inside` | `GET` | Mengambil daftar kendaraan aktif di area bengkel (`waktu_check_out IS NULL`). |
 | 6 | `/kim3/security/check-out` | `POST` | Melakukan checkout kendaraan (`waktu_check_out = NOW()`). Validasi: invoice POS wajib LUNAS. |
@@ -159,6 +159,15 @@ Menyimpan data seluruh armada truk member bengkel KIM 3 (nopol, merek, tipe, nam
 ### D. View Integrasi Gerbang (`sch_fleet.v_kunjungan_gerbang`)
 VIEW lintas schema yang menjembatani data gerbang `sch_pos.kunjungan_masuk` agar langsung terbaca dan tersinkronisasi di dashboard Web Fleet Customer (`Bengkel-Kim3`).
 
+### E. View Booking Aktif Security (`sch_fleet.v_security_booking_active`)
+VIEW khusus Security (tidak mengubah view customer) yang menghasilkan **satu baris per booking aktif** dan mengekspos flag:
+- `is_confirmed`, `is_within_window` (H-1), `can_checkin`
+- `is_stale_unconfirmed` (booking lama yang masih belum confirmed — tetap ditampilkan dan diblokir)
+- `is_stale_confirmed` (booking lama yang sudah confirmed — diabaikan)
+- `should_show` (booking dalam window H-1 atau stale unconfirmed)
+
+View ini juga dipakai untuk validasi server-side pada endpoint check-in.
+
 ---
 
 ## 6. Detail Implementasi Frontend & Aturan Logika Bisnis
@@ -166,22 +175,29 @@ VIEW lintas schema yang menjembatani data gerbang `sch_pos.kunjungan_masuk` agar
 ### A. Alur Check-In Tunggal (Unified Flow)
 Di [`src/views/CheckInView.tsx`](file:///D:/my-project/Project%20Backendless/Bengkel-Kim3-Security/src/views/CheckInView.tsx):
 - **Tidak ada toggle terpisah** antara "Booking" dan "Walk-In".
-- Cukup ketikkan **Nomor Polisi**, sistem secara otomatis mendeteksi 4 kondisi:
-  1. **Booking Confirmed**:
-     - Ditandai badge hijau *"Jadwal Terkonfirmasi"*.
-     - Data driver, rencana servis, dan `booking_id` terisi otomatis.
+- Cukup ketikkan **Nomor Polisi**, sistem menampilkan daftar kandidat yang bisa dipilih (booking aktif + unit member terdaftar), lalu mendeteksi kondisi:
+  1. **Booking Confirmed (window H-1)**:
+     - Ditandai badge hijau *"Confirmed"*.
+     - Data pelanggan, driver, rencana servis, dan `booking_id` terisi otomatis.
      - Tombol Check In **Aktif**.
   2. **Booking Belum Confirmed**:
-     - Muncul banner peringatan kuning/amber: *"Booking terdaftar namun status BELUM CONFIRMED. Silakan konfirmasi ke customer / Admin Bengkel sebelum check-in."*
+     - Muncul banner peringatan amber: *"Booking belum dikonfirmasi. Silakan konfirmasi ke Admin Bengkel."*
      - Tombol simpan Check In **Wajib Di-Disabled**.
-  3. **Walk-In Armada Terdaftar (`tbl_member_unit`)**:
-     - Ditandai badge biru *"Unit Terdaftar di Database Member"*.
+  3. **Booking Lewat H-1 & Belum Confirmed**:
+     - Tetap terdeteksi dan ditampilkan dengan badge merah *"Lewat H-1"*.
+     - Banner merah dan tombol Check In **Wajib Di-Disabled** sampai Admin mengonfirmasi ulang.
+  4. **Walk-In Armada Terdaftar (`tbl_member_unit`)**:
+     - Ditandai badge biru *"Member Unit"*; unit nonaktif diberi badge *"Nonaktif"*.
      - Nama perusahaan dan profil kendaraan terisi otomatis.
-     - `jenis_kedatangan = 'WALK_IN'`, Tombol Check In **Aktif**.
-  4. **Walk-In Murni (Armada Baru)**:
-     - Ditandai badge abu-abu *"Walk-In Langsung"*.
+     - `jenis_kedatangan = 'WALK_IN'`, Tombol Check In **Aktif** (termasuk unit nonaktif, dengan verifikasi fisik).
+     - Jika plat tersebut punya booking aktif, baris unit ditampilkan tetapi **disabled** dan security wajib memilih data booking.
+  5. **Walk-In Murni (Armada Baru / Tidak Terdaftar)**:
+     - Ditandai badge abu-abu *"Walk-In Biasa"*.
      - Petugas mengisi nama supir, telepon, dan keluhan manual.
      - Tombol Check In **Aktif**.
+
+> [!IMPORTANT]
+> Frontend hanya lapisan UX. Endpoint `/kim3/security/check-in` tetap memvalidasi ulang booking confirmed, window H-1, kecocokan plat, dan booking aktif sebelum insert.
 
 ### B. Penanganan Kamera Multi-Device
 Di [`src/components/common/CameraCaptureModal.tsx`](file:///D:/my-project/Project%20Backendless/Bengkel-Kim3-Security/src/components/common/CameraCaptureModal.tsx):

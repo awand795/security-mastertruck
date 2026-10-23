@@ -50,6 +50,51 @@ export interface BookingConfirmedItem {
   customer_telepon?: string;
 }
 
+export interface CheckinCandidate {
+  source: 'BOOKING' | 'MEMBER_UNIT';
+  booking_id?: number | null;
+  no_booking?: string | null;
+  no_polisi: string;
+  no_polisi_clean: string;
+  customer_name?: string | null;
+  customer_telepon?: string | null;
+  jenis_layanan?: string | null;
+  keluhan?: string | null;
+  catatan?: string | null;
+  tanggal_booking?: string | null;
+  jam_booking?: string | null;
+  status_booking?: string | null;
+  is_confirmed: boolean;
+  can_checkin: boolean;
+  is_within_window: boolean;
+  is_stale_unconfirmed: boolean;
+  unit_id?: number | null;
+  member_id?: number | null;
+  nama_perusahaan?: string | null;
+  nama_pengguna_fleet?: string | null;
+  nama_pic?: string | null;
+  unit_telepon?: string | null;
+  jenis_armada?: string | null;
+  merk?: string | null;
+  model?: string | null;
+  tahun?: number | null;
+  status_aktif?: boolean | null;
+  has_active_booking: boolean;
+}
+
+export interface CheckinResponse {
+  success: boolean;
+  message: string;
+  id?: number | null;
+  insertId?: number | null;
+  nomor_tiket?: string | null;
+  booking_id?: number | null;
+  jenis_kedatangan?: string | null;
+  no_polisi?: string | null;
+  nama_pengemudi?: string | null;
+  waktu_masuk?: string | number | null;
+}
+
 export interface ActiveInsideVehicle {
   id: number;
   nomor_tiket: string;

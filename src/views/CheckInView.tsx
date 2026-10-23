@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LogIn, 
   Search, 
@@ -15,7 +15,7 @@ import {
   Truck
 } from 'lucide-react';
 import { securityApi } from '../api/client';
-import { BookingConfirmedItem } from '../types';
+import { CheckinCandidate } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
 import { useSecurityStore } from '../store/useSecurityStore';
 
@@ -26,6 +26,14 @@ const INITIAL_PHOTOS: PhotoSlot[] = [
   { id: 'kiri', label: 'Tampak Samping Kiri' },
 ];
 
+const normalizePlate = (value: string) =>
+  value.trim().toUpperCase().replace(/\s+/g, '');
+
+const candidateKey = (candidate: CheckinCandidate) =>
+  candidate.source === 'BOOKING'
+    ? `BOOKING:${candidate.booking_id}`
+    : `MEMBER_UNIT:${candidate.unit_id ?? candidate.no_polisi_clean}`;
+
 export const CheckInView: React.FC = () => {
   const currentUser = useSecurityStore((state) => state.user);
 
@@ -34,10 +42,10 @@ export const CheckInView: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Lookup results
-  const [matchedBookings, setMatchedBookings] = useState<BookingConfirmedItem[]>([]);
-  const [selectedBooking, setSelectedBooking] = useState<BookingConfirmedItem | null>(null);
-  const [matchedUnit, setMatchedUnit] = useState<any | null>(null);
+  // Lookup results: booking aktif + unit member dalam satu daftar
+  const [candidates, setCandidates] = useState<CheckinCandidate[]>([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<CheckinCandidate | null>(null);
+  const selectedCandidateRef = useRef<CheckinCandidate | null>(null);
 
   // Driver and visit details
   const [namaPengemudi, setNamaPengemudi] = useState('');
@@ -61,86 +69,144 @@ export const CheckInView: React.FC = () => {
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Real-time lookup plate whenever plateInput changes
-  useEffect(() => {
-    const cleanPlate = plateInput.trim().toUpperCase().replace(/\s+/g, '');
-    if (cleanPlate.length < 3) {
-      setMatchedBookings([]);
-      setSelectedBooking(null);
-      setMatchedUnit(null);
+  const applyCandidate = (candidate: CheckinCandidate, forceFill = false) => {
+    const driverName = candidate.source === 'BOOKING'
+      ? candidate.customer_name || ''
+      : candidate.nama_pengguna_fleet || candidate.nama_pic || candidate.customer_name || '';
+    const driverPhone = candidate.source === 'BOOKING'
+      ? candidate.customer_telepon || ''
+      : candidate.unit_telepon || candidate.customer_telepon || '';
+    const complaint = candidate.source === 'BOOKING'
+      ? candidate.catatan || candidate.keluhan || 'Service Berkala'
+      : '';
+
+    setNamaPengemudi((prev) => (forceFill ? driverName : prev || driverName));
+    setNoTelpPengemudi((prev) => (forceFill ? driverPhone : prev || driverPhone));
+    if (complaint) {
+      setKeluhan((prev) => (forceFill ? complaint : prev || complaint));
+    }
+  };
+
+  const chooseCandidate = (candidate: CheckinCandidate | null, forceFill = false) => {
+    selectedCandidateRef.current = candidate;
+    setSelectedCandidate(candidate);
+    if (!candidate) {
+      setShowSuggestions(true);
       return;
     }
-
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        // 1. Search booking
-        const bookings = await securityApi.searchConfirmedBookings(cleanPlate);
-        setMatchedBookings(bookings);
-
-        // Auto-match if exact plate matches
-        const exactBooking = bookings.find(
-          (b) => b.nomor_polisi.replace(/\s+/g, '').toUpperCase() === cleanPlate
-        );
-        if (exactBooking) {
-          setSelectedBooking(exactBooking);
-          if (!namaPengemudi) setNamaPengemudi(exactBooking.nama_driver || '');
-          if (!noTelpPengemudi) setNoTelpPengemudi(exactBooking.no_telepon_driver || '');
-          if (!keluhan) setKeluhan(exactBooking.catatan || 'Service Berkala');
-        } else {
-          setSelectedBooking(null);
-        }
-
-        // 2. Search tbl_member_unit (armada terdaftar)
-        const units = await securityApi.lookupUnitMember(cleanPlate);
-        if (units.length > 0) {
-          const exactUnit = units[0];
-          setMatchedUnit(exactUnit);
-          if (!namaPengemudi && exactUnit.nama_pengguna_fleet) {
-            setNamaPengemudi(exactUnit.nama_pic || exactUnit.nama_pengguna_fleet);
-          }
-          if (!noTelpPengemudi && exactUnit.no_telepon) {
-            setNoTelpPengemudi(exactUnit.no_telepon);
-          }
-        } else {
-          setMatchedUnit(null);
-        }
-      } catch (err) {
-        console.error('Error lookup plate:', err);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 250);
-
-    return () => clearTimeout(timer);
-  }, [plateInput]);
-
-  const handleSelectBooking = (item: BookingConfirmedItem) => {
-    setSelectedBooking(item);
-    setPlateInput(item.nomor_polisi);
-    setNamaPengemudi(item.nama_driver || item.customer_name || '');
-    setNoTelpPengemudi(item.no_telepon_driver || '');
-    setKeluhan(item.catatan || item.keluhan || 'Service Berkala');
+    setPlateInput(candidate.no_polisi);
+    applyCandidate(candidate, forceFill);
     setShowSuggestions(false);
   };
 
+  // Real-time lookup: booking aktif + unit member terdaftar dalam satu daftar
+  useEffect(() => {
+    const lookupPlate = normalizePlate(plateInput);
+    if (lookupPlate.length < 3) {
+      setCandidates([]);
+      selectedCandidateRef.current = null;
+      setSelectedCandidate(null);
+      setShowSuggestions(false);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const found = await securityApi.searchCheckinCandidates(lookupPlate);
+        if (!active) return;
+
+        setCandidates(found);
+
+        // Jangan reset pilihan yang masih valid (mis. setelah klik suggestion).
+        const previous = selectedCandidateRef.current;
+        const previousStillValid = Boolean(
+          previous &&
+          previous.no_polisi_clean === lookupPlate &&
+          found.some((item) => candidateKey(item) === candidateKey(previous))
+        );
+        if (previousStillValid) return;
+
+        const exact = found.filter(
+          (item) =>
+            item.no_polisi_clean === lookupPlate &&
+            !(item.source === 'MEMBER_UNIT' && item.has_active_booking)
+        );
+
+        if (exact.length === 1) {
+          chooseCandidate(exact[0], false);
+        } else {
+          selectedCandidateRef.current = null;
+          setSelectedCandidate(null);
+          setShowSuggestions(found.length > 0);
+        }
+      } catch (err) {
+        console.error('Error lookup plate:', err);
+        if (active) {
+          setCandidates([]);
+          selectedCandidateRef.current = null;
+          setSelectedCandidate(null);
+        }
+      } finally {
+        if (active) setIsSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [plateInput]);
+
+  const handlePlateInputChange = (value: string) => {
+    const next = value.toUpperCase();
+    setPlateInput(next);
+    setErrorMsg(null);
+    setShowSuggestions(true);
+    const current = selectedCandidateRef.current;
+    if (current && current.no_polisi_clean !== normalizePlate(next)) {
+      selectedCandidateRef.current = null;
+      setSelectedCandidate(null);
+      setNamaPengemudi('');
+      setNoTelpPengemudi('');
+      setKeluhan('');
+    }
+  };
+
   // Status klasifikasi kedatangan
-  const hasBooking = Boolean(selectedBooking);
-  const isBookingConfirmed = Boolean(
-    selectedBooking && 
-    (selectedBooking.status_booking.toLowerCase().includes('confirm') || 
-     selectedBooking.status_booking.toLowerCase().includes('approve') ||
-     (selectedBooking as any).can_checkin === true)
+  const cleanPlate = normalizePlate(plateInput);
+  const selectedBooking = selectedCandidate?.source === 'BOOKING' ? selectedCandidate : null;
+  const selectedUnit = selectedCandidate?.source === 'MEMBER_UNIT' ? selectedCandidate : null;
+  const bookingCandidates = candidates.filter((item) => item.source === 'BOOKING');
+  const exactBookingCandidates = bookingCandidates.filter(
+    (item) => item.no_polisi_clean === cleanPlate
   );
-  const isBookingUnconfirmed = Boolean(hasBooking && !isBookingConfirmed);
-  const isWalkInWithUnit = Boolean(!hasBooking && matchedUnit);
-  const isWalkInPure = Boolean(!hasBooking && !matchedUnit);
+  const hasActiveBookingForPlate = exactBookingCandidates.length > 0;
+  const isBookingConfirmed = Boolean(
+    selectedBooking &&
+    selectedBooking.is_confirmed &&
+    selectedBooking.is_within_window &&
+    selectedBooking.can_checkin
+  );
+  const isBookingUnconfirmed = Boolean(selectedBooking && !selectedBooking.is_confirmed);
+  const isBookingBlocked = Boolean(selectedBooking && !isBookingConfirmed);
+  const isBookingStaleUnconfirmed = Boolean(selectedBooking?.is_stale_unconfirmed);
+  const isWalkInWithUnit = Boolean(!selectedBooking && selectedUnit);
+  const isWalkInPure = Boolean(
+    !selectedBooking &&
+    !selectedUnit &&
+    !hasActiveBookingForPlate &&
+    candidates.length === 0
+  );
 
   // Status apakah tombol check in bisa ditekan
   const canSubmit = () => {
-    if (isBookingUnconfirmed) return false; // DILARANG jika ada booking tapi belum confirmed
-    if (plateInput.trim().length < 3) return false;
+    if (cleanPlate.length < 3) return false;
     if (namaPengemudi.trim() === '') return false;
+    if (selectedBooking) return isBookingConfirmed;
+    if (selectedUnit) return !selectedUnit.has_active_booking;
+    if (hasActiveBookingForPlate) return false; // wajib pilih booking aktif
     return true;
   };
 
@@ -162,22 +228,32 @@ export const CheckInView: React.FC = () => {
 
     try {
       const generatedTiket = generateTicketNumber();
-      const jenisKedatangan: 'BOOKING' | 'WALK_IN' = hasBooking ? 'BOOKING' : 'WALK_IN';
+      const bookingId = selectedBooking?.booking_id ?? null;
+      const jenisKedatangan: 'BOOKING' | 'WALK_IN' = selectedBooking ? 'BOOKING' : 'WALK_IN';
       const payload = {
         nomor_tiket: generatedTiket,
-        booking_id: selectedBooking ? selectedBooking.booking_id : null,
+        booking_id: bookingId,
         jenis_kedatangan: jenisKedatangan,
-        no_polisi: plateInput.trim().toUpperCase(),
+        no_polisi: cleanPlate,
         nama_pengemudi: namaPengemudi.trim(),
         no_telepon_pengemudi: noTelpPengemudi.trim(),
         tipe_kunjungan: tipeKunjungan,
         keluhan: keluhan.trim() || 'Pengecekan umum armada',
-        petugas_security_masuk: currentUser?.nama || 'Pos Security KIM 3',
+        petugas_security: currentUser?.nama || 'Pos Security KIM 3',
         catatan_masuk: catatanMasuk.trim() || undefined,
       };
 
       const result = await securityApi.postCheckIn(payload);
-      const newKunjunganId = result?.id || result?.insertId || Date.now();
+
+      if (result && result.success === false) {
+        setErrorMsg(result.message || 'Check-in ditolak oleh server.');
+        return;
+      }
+
+      const newKunjunganId = Number(result?.id ?? result?.insertId ?? 0);
+      if (!newKunjunganId) {
+        throw new Error(result?.message || 'Server tidak mengembalikan ID kunjungan.');
+      }
 
       // Upload captured photos
       const photosToUpload = photos.filter((p) => Boolean(p.dataUrl));
@@ -185,7 +261,7 @@ export const CheckInView: React.FC = () => {
         if (p.dataUrl) {
           try {
             await securityApi.postAddFoto({
-              kunjungan_id: Number(newKunjunganId),
+              kunjungan_id: newKunjunganId,
               jenis_event: 'MASUK',
               sudut_pandang: p.label,
               foto_data: p.dataUrl,
@@ -196,13 +272,27 @@ export const CheckInView: React.FC = () => {
         }
       }
 
+      const localTime = new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Jakarta',
+      }) + ' WIB';
+      const responseTime = result?.waktu_masuk ? new Date(result.waktu_masuk) : null;
+      const formattedTime = responseTime && !Number.isNaN(responseTime.getTime())
+        ? responseTime.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Jakarta',
+          }) + ' WIB'
+        : localTime;
+
       setSuccessTicket({
-        nomor_tiket: generatedTiket,
-        no_polisi: payload.no_polisi,
-        waktu_masuk: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
-        nama_driver: payload.nama_pengemudi,
-        jenis: payload.jenis_kedatangan,
-        booking_id: payload.booking_id,
+        nomor_tiket: result?.nomor_tiket || generatedTiket,
+        no_polisi: result?.no_polisi || cleanPlate,
+        waktu_masuk: formattedTime,
+        nama_driver: result?.nama_pengemudi || payload.nama_pengemudi,
+        jenis: result?.jenis_kedatangan === 'BOOKING' || bookingId !== null ? 'BOOKING' : 'WALK_IN',
+        booking_id: result?.booking_id ?? bookingId,
       });
     } catch (err: any) {
       console.error('Check in error:', err);
@@ -219,8 +309,10 @@ export const CheckInView: React.FC = () => {
     setNoTelpPengemudi('');
     setKeluhan('');
     setCatatanMasuk('');
-    setSelectedBooking(null);
-    setMatchedUnit(null);
+    setCandidates([]);
+    selectedCandidateRef.current = null;
+    setSelectedCandidate(null);
+    setShowSuggestions(false);
     setPhotos(INITIAL_PHOTOS);
   };
 
@@ -322,10 +414,7 @@ export const CheckInView: React.FC = () => {
                 type="text"
                 required
                 value={plateInput}
-                onChange={(e) => {
-                  setPlateInput(e.target.value.toUpperCase());
-                  setShowSuggestions(true);
-                }}
+                onChange={(e) => handlePlateInputChange(e.target.value)}
                 onFocus={() => setShowSuggestions(true)}
                 placeholder="Ketik plat nomor... Contoh: BK 9393 ER"
                 className="w-full pl-10 pr-24 py-3 bg-[#F8FAFC] border border-[#CBD5E1] rounded-xl text-base font-mono font-bold tracking-wider text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#12388F] focus:ring-2 focus:ring-[#12388F]/20 uppercase transition"
@@ -337,71 +426,212 @@ export const CheckInView: React.FC = () => {
               )}
             </div>
 
-            {/* Suggestions list if multiple bookings match query */}
-            {showSuggestions && matchedBookings.length > 0 && !selectedBooking && (
-              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#CBD5E1] rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+            {/* Daftar kandidat: booking aktif + unit member terdaftar */}
+            {showSuggestions && candidates.length > 0 && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#CBD5E1] rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
                 <div className="p-2.5 text-[11px] font-bold text-[#64748B] border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                  Pilih dari Antrean Booking:
+                  Pilih data kendaraan (Booking / Member Unit):
                 </div>
-                {matchedBookings.map((b) => (
-                  <button
-                    key={b.booking_id}
-                    type="button"
-                    onClick={() => handleSelectBooking(b)}
-                    className="w-full text-left p-3 hover:bg-[#F1F5F9] border-b border-[#F1F5F9] flex items-center justify-between transition cursor-pointer"
-                  >
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-mono font-bold text-[#0F172A] text-sm">{b.nomor_polisi}</span>
-                        <span className="text-xs text-[#64748B]">• {b.customer_name || 'Pelanggan'}</span>
-                      </div>
-                      <div className="text-xs text-[#64748B] mt-0.5">
-                        Jadwal: {b.tanggal_booking} ({b.jam_booking}) • Layanan: {b.jenis_layanan}
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        b.status_booking.toLowerCase().includes('confirm')
-                          ? 'bg-[#DCFCE7] text-[#16A34A] border border-[#16A34A]/30'
-                          : 'bg-[#FEF3C7] text-[#D97706] border border-[#D97706]/30'
-                      }`}
+                {candidates.map((item) => {
+                  const disabled = item.source === 'MEMBER_UNIT' && item.has_active_booking;
+                  const selected = Boolean(
+                    selectedCandidate &&
+                    candidateKey(selectedCandidate) === candidateKey(item)
+                  );
+                  const vehicleLabel = [item.merk, item.model].filter(Boolean).join(' ') ||
+                    item.jenis_armada ||
+                    'Unit';
+
+                  return (
+                    <button
+                      key={candidateKey(item)}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => chooseCandidate(item, true)}
+                      className={`w-full text-left p-3 border-b border-[#F1F5F9] flex items-center justify-between transition ${
+                        disabled
+                          ? 'bg-[#F8FAFC] opacity-60 cursor-not-allowed'
+                          : 'hover:bg-[#F1F5F9] cursor-pointer'
+                      } ${selected ? 'bg-[#EFF6FF]' : ''}`}
                     >
-                      {b.status_booking}
-                    </span>
-                  </button>
-                ))}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          <span className="font-mono font-bold text-[#0F172A] text-sm">
+                            {item.no_polisi}
+                          </span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              item.source === 'BOOKING'
+                                ? 'bg-[#E0E7FF] text-[#3730A3] border-[#6366F1]/30'
+                                : 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1]'
+                            }`}
+                          >
+                            {item.source === 'BOOKING' ? 'Booking' : 'Member Unit'}
+                          </span>
+                          {item.source === 'MEMBER_UNIT' && item.status_aktif === false && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEE2E2] text-[#DC2626] border border-[#DC2626]/30">
+                              Nonaktif
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-[#64748B] mt-0.5 truncate">
+                          {item.source === 'BOOKING' ? (
+                            <>
+                              Jadwal: {item.tanggal_booking || '-'} ({item.jam_booking || '-'}) •{' '}
+                              {item.customer_name || 'Pelanggan'}
+                            </>
+                          ) : (
+                            <>
+                              {item.nama_perusahaan || item.customer_name || 'Member'} • {vehicleLabel}
+                            </>
+                          )}
+                        </div>
+                        {disabled && (
+                          <div className="text-[10px] text-[#D97706] mt-1">
+                            Ada booking aktif untuk plat ini — pilih data booking.
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        {item.source === 'BOOKING' ? (
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              item.is_confirmed
+                                ? 'bg-[#DCFCE7] text-[#16A34A] border-[#16A34A]/30'
+                                : item.is_stale_unconfirmed
+                                ? 'bg-[#FEE2E2] text-[#DC2626] border-[#DC2626]/30'
+                                : 'bg-[#FEF3C7] text-[#D97706] border-[#D97706]/30'
+                            }`}
+                          >
+                            {item.is_confirmed
+                              ? 'Confirmed'
+                              : item.is_stale_unconfirmed
+                              ? 'Lewat H-1'
+                              : 'Belum Confirmed'}
+                          </span>
+                        ) : (
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                              item.status_aktif === false
+                                ? 'bg-[#FEE2E2] text-[#DC2626] border-[#DC2626]/30'
+                                : 'bg-[#EFF6FF] text-[#1E40AF] border-[#3B82F6]/30'
+                            }`}
+                          >
+                            {item.status_aktif === false ? 'Nonaktif' : 'Walk-In'}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
             {/* Status Peringatan Cerdas (Satu Halaman): Booking vs Walk-in Member vs Walk-in Baru */}
-            {plateInput.trim().length >= 3 && (
-              <div className="mt-3">
+            {cleanPlate.length >= 3 && (
+              <div className="mt-3 space-y-2">
                 {isBookingConfirmed && selectedBooking && (
                   <div className="p-3.5 rounded-xl bg-[#DCFCE7] border border-[#16A34A]/30 flex items-start space-x-2.5 text-xs text-[#16A34A]">
                     <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-sm block">Booking Terkonfirmasi (Booking ID #{selectedBooking.booking_id})</span>
-                      <span>Jadwal: {selectedBooking.tanggal_booking} ({selectedBooking.jam_booking}) • Pelanggan: {selectedBooking.customer_name}. Siap check in.</span>
+                      <span className="font-bold text-sm block">
+                        Booking Terkonfirmasi (Booking ID #{selectedBooking.booking_id})
+                      </span>
+                      <span>
+                        Jadwal: {selectedBooking.tanggal_booking || '-'} ({selectedBooking.jam_booking || '-'}) • Pelanggan:{' '}
+                        {selectedBooking.customer_name || 'Pelanggan'}. Siap check in.
+                      </span>
                     </div>
                   </div>
                 )}
 
                 {isBookingUnconfirmed && selectedBooking && (
-                  <div className="p-3.5 rounded-xl bg-[#FEF3C7] border border-[#D97706]/40 flex items-start space-x-2.5 text-xs text-[#D97706]">
+                  <div
+                    className={`p-3.5 rounded-xl border flex items-start space-x-2.5 text-xs ${
+                      isBookingStaleUnconfirmed
+                        ? 'bg-[#FEE2E2] border-[#DC2626]/40 text-[#DC2626]'
+                        : 'bg-[#FEF3C7] border-[#D97706]/40 text-[#D97706]'
+                    }`}
+                  >
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-sm block">Booking Belum Dikonfirmasi ({selectedBooking.status_booking})</span>
-                      <span>Status booking untuk plat ini belum confirmed. <strong>Silakan konfirmasi ke customer / Admin Bengkel terlebih dahulu sebelum mengizinkan kendaraan masuk.</strong> Tombol check in dinonaktifkan.</span>
+                      <span className="font-bold text-sm block">
+                        {isBookingStaleUnconfirmed
+                          ? 'Booking Lewat Batas H-1 & Belum Dikonfirmasi'
+                          : 'Booking Belum Dikonfirmasi'}
+                        {selectedBooking.status_booking ? ` (${selectedBooking.status_booking})` : ''}
+                      </span>
+                      <span>
+                        {isBookingStaleUnconfirmed
+                          ? 'Jadwal booking sudah melewati batas H-1 dan statusnya masih belum confirmed. '
+                          : 'Status booking untuk plat ini belum confirmed. '}
+                        <strong>
+                          Silakan konfirmasi ke Admin Bengkel terlebih dahulu sebelum mengizinkan kendaraan masuk.
+                        </strong>{' '}
+                        Tombol check in dinonaktifkan.
+                      </span>
                     </div>
                   </div>
                 )}
 
-                {isWalkInWithUnit && matchedUnit && (
-                  <div className="p-3.5 rounded-xl bg-[#EFF6FF] border border-[#3B82F6]/30 flex items-start space-x-2.5 text-xs text-[#1E40AF]">
-                    <Truck className="w-4 h-4 shrink-0 mt-0.5 text-[#3B82F6]" />
+                {!selectedCandidate && hasActiveBookingForPlate && (
+                  <div className="p-3.5 rounded-xl bg-[#FEF3C7] border border-[#D97706]/40 flex items-start space-x-2.5 text-xs text-[#D97706]">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-sm block">Kedatangan Walk-In (Armada Terdaftar di Member Unit)</span>
-                      <span>Unit armada terdaftar milik <strong>{matchedUnit.nama_pengguna_fleet || matchedUnit.nama_perusahaan || 'Member'}</strong> ({matchedUnit.merk} {matchedUnit.model}). Data otomatis diisi ke form.</span>
+                      <span className="font-bold text-sm block">Booking Aktif Ditemukan</span>
+                      <span>
+                        Plat ini memiliki booking aktif. Silakan pilih data booking pada daftar di atas untuk melanjutkan.
+                        Check-in walk-in tidak diizinkan selama booking masih aktif.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {isWalkInWithUnit && selectedUnit && (
+                  <div
+                    className={`p-3.5 rounded-xl border flex items-start space-x-2.5 text-xs ${
+                      selectedUnit.status_aktif === false
+                        ? 'bg-[#FEF3C7] border-[#D97706]/40 text-[#D97706]'
+                        : 'bg-[#EFF6FF] border-[#3B82F6]/30 text-[#1E40AF]'
+                    }`}
+                  >
+                    <Truck
+                      className={`w-4 h-4 shrink-0 mt-0.5 ${
+                        selectedUnit.status_aktif === false ? 'text-[#D97706]' : 'text-[#3B82F6]'
+                      }`}
+                    />
+                    <div>
+                      <span className="font-bold text-sm block">
+                        {selectedUnit.status_aktif === false
+                          ? 'Walk-In Unit Member (Nonaktif)'
+                          : 'Kedatangan Walk-In (Armada Terdaftar di Member Unit)'}
+                      </span>
+                      <span>
+                        Unit armada terdaftar milik{' '}
+                        <strong>
+                          {selectedUnit.nama_pengguna_fleet ||
+                            selectedUnit.nama_perusahaan ||
+                            'Member'}
+                        </strong>{' '}
+                        (
+                        {[selectedUnit.merk, selectedUnit.model].filter(Boolean).join(' ') ||
+                          selectedUnit.jenis_armada ||
+                          'Unit'}
+                        ).{' '}
+                        {selectedUnit.status_aktif === false
+                          ? 'Status unit nonaktif, tetapi kedatangan walk-in tetap diizinkan. Verifikasi fisik kendaraan.'
+                          : 'Data otomatis diisi ke form.'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {!selectedCandidate && !hasActiveBookingForPlate && candidates.length > 0 && (
+                  <div className="p-3 rounded-xl bg-[#F8FAFC] border border-[#CBD5E1] flex items-center space-x-2.5 text-xs text-[#64748B]">
+                    <Info className="w-4 h-4 shrink-0 text-[#12388F]" />
+                    <div>
+                      <span className="font-bold text-[#0F172A]">Pilih Data yang Cocok:</span>{' '}
+                      Klik salah satu hasil di atas, atau lanjutkan sebagai walk-in jika plat yang diketik tidak ada di daftar.
                     </div>
                   </div>
                 )}
@@ -527,8 +757,12 @@ export const CheckInView: React.FC = () => {
             <span>
               {isSubmitting
                 ? 'Memproses Check In...'
-                : isBookingUnconfirmed
-                ? 'Booking Belum Confirmed (Silakan Konfirmasi ke Customer)'
+                : selectedBooking && isBookingUnconfirmed
+                ? isBookingStaleUnconfirmed
+                  ? 'Booking Lewat H-1 & Belum Confirmed'
+                  : 'Booking Belum Confirmed (Silakan Konfirmasi ke Admin)'
+                : !selectedCandidate && hasActiveBookingForPlate
+                ? 'Pilih Data Booking Terlebih Dahulu'
                 : 'Terbitkan Tiket & Check In'}
             </span>
           </button>
