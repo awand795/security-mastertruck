@@ -107,10 +107,17 @@ export const securityApi = {
   // 5. Check out vehicle (set waktu_check_out = NOW() & terbitkan nomor_memo)
   postCheckOut: async (payload: {
     id: number;
+    kunjungan_id?: number;
     petugas_security_keluar: string;
     catatan_keluar?: string;
   }): Promise<any> => {
-    const res = await apiClient.post('/kim3/security/check-out', payload);
+    const res = await apiClient.post('/kim3/security/check-out', {
+      kunjungan_id: payload.kunjungan_id ?? payload.id,
+      id: payload.id,
+      petugas_security: payload.petugas_security_keluar,
+      petugas_security_keluar: payload.petugas_security_keluar,
+      catatan_keluar: payload.catatan_keluar,
+    });
     const body = res.data;
     const unwrapped =
       body && typeof body === 'object' && !Array.isArray(body) && 'data' in body
