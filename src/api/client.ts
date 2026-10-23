@@ -127,7 +127,7 @@ export const securityApi = {
     company?: string;
   }, customBaseUrl?: string) => {
     const apiKey = import.meta.env.VITE_DARKOPOS_API_KEY || 'TURNONTHEAPI98';
-    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || '').replace(/\/+$/, '');
+    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com').replace(/\/+$/, '');
 
     if (!baseUrl) {
       throw new Error('BASE_URL_NOT_SET');
@@ -154,7 +154,7 @@ export const securityApi = {
 
   // 9. DarkoPOS Logout (/api/v1/users/logout)
   logoutDarkoPos: async (idToken?: string | null, sessionId?: string | null, customBaseUrl?: string) => {
-    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || '').replace(/\/+$/, '');
+    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com').replace(/\/+$/, '');
     if (!baseUrl || !idToken) return;
 
     try {

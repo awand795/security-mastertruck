@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Lock, 
   User, 
@@ -29,8 +29,14 @@ export const LoginSecurity: React.FC = () => {
 
   // Tunnel Config state (ngrok / Cloudflare Tunnel)
   const { tunnelBaseUrl, setTunnelBaseUrl, login } = useSecurityStore();
+  const effectiveBaseUrl = tunnelBaseUrl?.trim() || import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com';
   const [showConfig, setShowConfig] = useState(false);
-  const [inputUrl, setInputUrl] = useState(tunnelBaseUrl);
+  const [inputUrl, setInputUrl] = useState(effectiveBaseUrl);
+
+  // Sinkronkan inputUrl jika effectiveBaseUrl berubah
+  useEffect(() => {
+    setInputUrl(effectiveBaseUrl);
+  }, [effectiveBaseUrl]);
 
   const handleSaveTunnelUrl = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,8 +59,8 @@ export const LoginSecurity: React.FC = () => {
     setInfoMsg(null);
 
     try {
-      // 1. Coba panggil real API DarkoPOS jika tunnel / base url sudah ada
-      if (tunnelBaseUrl && tunnelBaseUrl.trim() !== '') {
+      // 1. Panggil API DarkoPOS dengan URL tunnel default/aktif
+      if (effectiveBaseUrl) {
         let res;
         try {
           res = await securityApi.loginDarkoPos(
@@ -63,7 +69,7 @@ export const LoginSecurity: React.FC = () => {
               password: password,
               company: 'BENGKEL MASTER TRUK',
             },
-            tunnelBaseUrl.trim()
+            effectiveBaseUrl
           );
         } catch (eComp: any) {
           if (eComp.response?.status === 401) {
@@ -75,7 +81,7 @@ export const LoginSecurity: React.FC = () => {
                   password: password,
                   company: '',
                 },
-                tunnelBaseUrl.trim()
+                effectiveBaseUrl
               );
             } catch {
               throw eComp;

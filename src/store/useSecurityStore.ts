@@ -14,6 +14,8 @@ interface SecurityStore {
   setTunnelBaseUrl: (url: string) => void;
 }
 
+const DEFAULT_TUNNEL_URL = import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com';
+
 export const useSecurityStore = create<SecurityStore>()(
   persist(
     (set, get) => ({
@@ -21,7 +23,7 @@ export const useSecurityStore = create<SecurityStore>()(
       idToken: null,
       profile: null,
       isAuthenticated: false,
-      tunnelBaseUrl: localStorage.getItem('DARKOPOS_TUNNEL_URL') || import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com',
+      tunnelBaseUrl: localStorage.getItem('DARKOPOS_TUNNEL_URL')?.trim() || DEFAULT_TUNNEL_URL,
       login: (user, token, profile) =>
         set({
           user,
@@ -42,12 +44,18 @@ export const useSecurityStore = create<SecurityStore>()(
         });
       },
       setTunnelBaseUrl: (url: string) => {
-        localStorage.setItem('DARKOPOS_TUNNEL_URL', url.trim());
-        set({ tunnelBaseUrl: url.trim() });
+        const clean = url.trim() || DEFAULT_TUNNEL_URL;
+        localStorage.setItem('DARKOPOS_TUNNEL_URL', clean);
+        set({ tunnelBaseUrl: clean });
       },
     }),
     {
       name: 'bengkel-kim3-security-auth',
+      merge: (persistedState: any, currentState) => ({
+        ...currentState,
+        ...persistedState,
+        tunnelBaseUrl: persistedState?.tunnelBaseUrl?.trim() || DEFAULT_TUNNEL_URL,
+      }),
     }
   )
 );
