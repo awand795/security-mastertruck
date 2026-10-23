@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LogIn,
   Search,
@@ -842,89 +843,99 @@ export const CheckInView: React.FC = () => {
       </form>
 
       {/* MODAL POPUP: Alert Booking Belum Dikonfirmasi */}
-      {unconfirmedModalCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
-            {/* Header Alert */}
-            <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4.5 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
-                  <ShieldAlert className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold tracking-tight">Booking Belum Dikonfirmasi</h3>
-                  <p className="text-xs text-amber-100">Pemberitahuan Petugas Security</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setUnconfirmedModalCandidate(null)}
-                className="rounded-lg p-1.5 text-white/80 hover:bg-white/20 hover:text-white transition"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Isi Konten Modal */}
-            <div className="p-6 space-y-4">
-              <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-4 text-xs text-amber-900 leading-relaxed">
-                <p className="font-semibold text-sm text-amber-950 mb-1">
-                  Kendaraan Belum Diizinkan Masuk Gerbang
-                </p>
-                Silakan arahkan pengemudi atau customer untuk melakukan <strong>konfirmasi booking service</strong> terlebih dahulu ke <strong>Admin Bengkel / Service Advisor</strong> sebelum melanjutkan proses check-in.
-              </div>
-
-              {/* Detail Ringkas Booking */}
-              <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-xs">
-                <div className="flex items-center justify-between py-1.5">
-                  <span className="text-slate-500">Nomor Polisi:</span>
-                  <span className="font-mono font-bold text-slate-800 text-sm">
-                    {formatPlate(unconfirmedModalCandidate.no_polisi)}
-                  </span>
-                </div>
-                {unconfirmedModalCandidate.no_booking && (
-                  <div className="flex items-center justify-between py-1.5">
-                    <span className="text-slate-500">No. Booking:</span>
-                    <span className="font-mono font-semibold text-slate-700">
-                      {unconfirmedModalCandidate.no_booking}
-                    </span>
+      {unconfirmedModalCandidate &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setUnconfirmedModalCandidate(null);
+            }}
+          >
+            <div
+              className="relative w-full max-w-md overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header Alert */}
+              <div className="bg-gradient-to-r from-amber-500 to-amber-600 px-6 py-4.5 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md">
+                    <ShieldAlert className="h-6 w-6 text-white" />
                   </div>
-                )}
-                <div className="flex items-center justify-between py-1.5">
-                  <span className="text-slate-500">Nama Customer:</span>
-                  <span className="font-semibold text-slate-800">
-                    {unconfirmedModalCandidate.customer_name || '-'}
-                  </span>
+                  <div>
+                    <h3 className="text-base font-bold tracking-tight">Booking Belum Dikonfirmasi</h3>
+                    <p className="text-xs text-amber-100">Pemberitahuan Petugas Security</p>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between py-1.5">
-                  <span className="text-slate-500">Jadwal Rencana:</span>
-                  <span className="font-medium text-slate-700 flex items-center gap-1">
-                    <Calendar className="h-3 w-3 text-amber-600" />
-                    {unconfirmedModalCandidate.tanggal_booking || '-'} {unconfirmedModalCandidate.jam_booking || ''}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between py-1.5">
-                  <span className="text-slate-500">Status Saat Ini:</span>
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
-                    {unconfirmedModalCandidate.status_booking || 'Menunggu Konfirmasi'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => setUnconfirmedModalCandidate(null)}
-                  className="w-full rounded-xl bg-amber-600 px-4 py-3 text-xs font-bold text-white shadow-md shadow-amber-600/20 hover:bg-amber-700 transition"
+                  className="rounded-lg p-1.5 text-white/80 hover:bg-white/20 hover:text-white transition cursor-pointer"
                 >
-                  Saya Mengerti, Beritahu Pengemudi
+                  <X className="h-5 w-5" />
                 </button>
               </div>
+
+              {/* Isi Konten Modal */}
+              <div className="p-6 space-y-4">
+                <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-4 text-xs text-amber-900 leading-relaxed">
+                  <p className="font-semibold text-sm text-amber-950 mb-1">
+                    Kendaraan Belum Diizinkan Masuk Gerbang
+                  </p>
+                  Silakan arahkan pengemudi atau customer untuk melakukan <strong>konfirmasi booking service</strong> terlebih dahulu ke <strong>Admin Bengkel / Service Advisor</strong> sebelum melanjutkan proses check-in.
+                </div>
+
+                {/* Detail Ringkas Booking */}
+                <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-xs">
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-slate-500">Nomor Polisi:</span>
+                    <span className="font-mono font-bold text-slate-800 text-sm">
+                      {formatPlate(unconfirmedModalCandidate.no_polisi)}
+                    </span>
+                  </div>
+                  {unconfirmedModalCandidate.no_booking && (
+                    <div className="flex items-center justify-between py-1.5">
+                      <span className="text-slate-500">No. Booking:</span>
+                      <span className="font-mono font-semibold text-slate-700">
+                        {unconfirmedModalCandidate.no_booking}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-slate-500">Nama Customer:</span>
+                    <span className="font-semibold text-slate-800">
+                      {unconfirmedModalCandidate.customer_name || '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-slate-500">Jadwal Rencana:</span>
+                    <span className="font-medium text-slate-700 flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-amber-600" />
+                      {unconfirmedModalCandidate.tanggal_booking || '-'} {unconfirmedModalCandidate.jam_booking || ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-slate-500">Status Saat Ini:</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 border border-amber-200">
+                      {unconfirmedModalCandidate.status_booking || 'Menunggu Konfirmasi'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-2 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setUnconfirmedModalCandidate(null)}
+                    className="w-full rounded-xl bg-amber-600 px-4 py-3 text-xs font-bold text-white shadow-md shadow-amber-600/20 hover:bg-amber-700 transition cursor-pointer"
+                  >
+                    Saya Mengerti, Beritahu Pengemudi
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ShieldCheck, 
   User, 
@@ -93,54 +94,64 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onChangeTab }) => {
       </header>
 
       {/* Profile Detail Modal */}
-      {profileModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white border border-[#CBD5E1] rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
-            <button
-              onClick={() => setProfileModalOpen(false)}
-              className="absolute top-4 right-4 text-[#64748B] hover:text-[#0F172A] p-1 rounded-lg"
+      {profileModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setProfileModalOpen(false);
+            }}
+          >
+            <div
+              className="bg-white border border-[#CBD5E1] rounded-2xl p-6 max-w-sm w-full shadow-2xl relative"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-4 h-4" />
-            </button>
+              <button
+                onClick={() => setProfileModalOpen(false)}
+                className="absolute top-4 right-4 text-[#64748B] hover:text-[#0F172A] p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
 
-            <div className="text-center pb-4 border-b border-[#E2E8F0] mb-4">
-              <div className="w-16 h-16 rounded-full bg-[#12388F] text-white font-bold text-xl flex items-center justify-center mx-auto mb-2 shadow-md">
-                {user?.nama?.charAt(0)?.toUpperCase() || 'S'}
+              <div className="text-center pb-4 border-b border-[#E2E8F0] mb-4">
+                <div className="w-16 h-16 rounded-full bg-[#12388F] text-white font-bold text-xl flex items-center justify-center mx-auto mb-2 shadow-md">
+                  {user?.nama?.charAt(0)?.toUpperCase() || 'S'}
+                </div>
+                <h3 className="font-bold text-[#0F172A] text-base">{user?.nama || 'Petugas Security'}</h3>
+                <p className="text-xs text-[#64748B]">Pos Gerbang Bengkel Master Truck KIM 3</p>
               </div>
-              <h3 className="font-bold text-[#0F172A] text-base">{user?.nama || 'Petugas Security'}</h3>
-              <p className="text-xs text-[#64748B]">Pos Gerbang Bengkel Master Truck KIM 3</p>
+
+              <div className="space-y-3 text-xs mb-6">
+                <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
+                  <span className="text-[#64748B]">User ID / Akun:</span>
+                  <span className="font-mono font-bold text-[#0F172A]">{profile?.userid || user?.userid || 'adminPOS'}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
+                  <span className="text-[#64748B]">Perusahaan:</span>
+                  <span className="font-semibold text-[#0F172A]">{profile?.usercompany || 'BENGKEL MASTER TRUK'}</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
+                  <span className="text-[#64748B]">Role / Otoritas:</span>
+                  <span className="font-bold text-[#12388F]">{profile?.role || user?.role || 'SECURITY'}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-[#64748B]">Status Token:</span>
+                  <span className="text-[#16A34A] font-semibold">Tersambung (DarkoPOS)</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={logout}
+                className="w-full py-2.5 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+              >
+                <ExitIcon className="w-4 h-4" />
+                <span>Keluar dari Akun Pos Gerbang</span>
+              </button>
             </div>
-
-            <div className="space-y-3 text-xs mb-6">
-              <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
-                <span className="text-[#64748B]">User ID / Akun:</span>
-                <span className="font-mono font-bold text-[#0F172A]">{profile?.userid || user?.userid || 'adminPOS'}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
-                <span className="text-[#64748B]">Perusahaan:</span>
-                <span className="font-semibold text-[#0F172A]">{profile?.usercompany || 'BENGKEL MASTER TRUK'}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b border-[#F1F5F9]">
-                <span className="text-[#64748B]">Role / Otoritas:</span>
-                <span className="font-bold text-[#12388F]">{profile?.role || user?.role || 'SECURITY'}</span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-[#64748B]">Status Token:</span>
-                <span className="text-[#16A34A] font-semibold">Tersambung (DarkoPOS)</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={logout}
-              className="w-full py-2.5 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white font-semibold text-xs flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
-            >
-              <ExitIcon className="w-4 h-4" />
-              <span>Keluar dari Akun Pos Gerbang</span>
-            </button>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 };

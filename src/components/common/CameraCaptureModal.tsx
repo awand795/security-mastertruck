@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, X, RefreshCw, Check, AlertCircle } from 'lucide-react';
 
 interface CameraCaptureModalProps {
@@ -154,9 +155,17 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
-      <div className="relative w-full max-w-lg bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden shadow-2xl flex flex-col">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
+    >
+      <div
+        className="relative w-full max-w-lg bg-white border border-[#CBD5E1] rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0] bg-white">
           <div className="flex items-center space-x-2">
@@ -252,6 +261,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

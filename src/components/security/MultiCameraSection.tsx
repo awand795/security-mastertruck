@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, Trash2, Plus, X, RefreshCw } from 'lucide-react';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
 
@@ -156,29 +157,35 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
       )}
 
       {/* Image Preview Modal */}
-      {previewPhoto && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Pratinjau foto"
-          className="app-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
-        >
-          <div className="app-modal-in relative w-full max-w-2xl overflow-hidden rounded-2xl bg-[#0B1F4D] p-2 shadow-2xl">
-            <button
-              onClick={() => setPreviewPhoto(null)}
-              title="Tutup pratinjau"
-              className="absolute right-4 top-4 z-10 cursor-pointer rounded-full bg-black/60 p-2 text-white transition hover:bg-black/80"
+      {previewPhoto &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Pratinjau foto"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+            onClick={() => setPreviewPhoto(null)}
+          >
+            <div
+              className="relative w-full max-w-2xl overflow-hidden rounded-2xl bg-[#0B1F4D] p-2 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="h-4 w-4" />
-            </button>
-            <img
-              src={previewPhoto}
-              alt="Pratinjau penuh foto kendaraan"
-              className="h-auto w-full rounded-xl"
-            />
-          </div>
-        </div>
-      )}
+              <button
+                onClick={() => setPreviewPhoto(null)}
+                title="Tutup pratinjau"
+                className="absolute right-4 top-4 z-10 cursor-pointer rounded-full bg-black/60 p-2 text-white transition hover:bg-black/80"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <img
+                src={previewPhoto}
+                alt="Pratinjau penuh foto kendaraan"
+                className="h-auto w-full rounded-xl"
+              />
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

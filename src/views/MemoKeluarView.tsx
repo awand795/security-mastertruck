@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FileText,
   Search,
@@ -315,15 +316,21 @@ export const MemoKeluarView: React.FC = () => {
       </div>
 
       {/* Detail & Print Modal */}
-      {selectedMemo && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Detail memo keluar"
-          className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-4 sm:p-6 backdrop-blur-xs animate-in fade-in duration-150"
-        >
-          <div className="flex min-h-full items-center justify-center py-4">
-            <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#D5DDE8] bg-white shadow-2xl animate-in zoom-in-95 duration-150">
+      {selectedMemo &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Detail memo keluar"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4 sm:p-6 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) handleCloseDetail();
+            }}
+          >
+            <div
+              className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#D5DDE8] bg-white shadow-2xl animate-in zoom-in-95 duration-150"
+              onClick={(e) => e.stopPropagation()}
+            >
               {/* Header Pinned */}
               <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#E2E8F0] bg-gradient-to-r from-[#F8FAFC] to-white p-5">
                 <div className="flex items-start gap-3">
@@ -483,37 +490,42 @@ export const MemoKeluarView: React.FC = () => {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {/* Modal Zoom Foto */}
-      {zoomPhoto && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setZoomPhoto(null)}
-          className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in"
-        >
-          <div className="relative max-h-[90vh] max-w-3xl overflow-hidden rounded-2xl bg-white p-2 shadow-2xl">
-            <div className="flex items-center justify-between p-2">
-              <span className="text-xs font-bold text-slate-800">{zoomPhoto.title}</span>
-              <button
-                type="button"
-                onClick={() => setZoomPhoto(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              >
-                <X className="h-5 w-5" />
-              </button>
+      {zoomPhoto &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setZoomPhoto(null)}
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in"
+          >
+            <div
+              className="relative max-h-[90vh] max-w-3xl overflow-hidden rounded-2xl bg-white p-2 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-2">
+                <span className="text-xs font-bold text-slate-800">{zoomPhoto.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setZoomPhoto(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <img
+                src={zoomPhoto.url}
+                alt={zoomPhoto.title}
+                className="max-h-[75vh] w-auto rounded-lg object-contain"
+              />
             </div>
-            <img
-              src={zoomPhoto.url}
-              alt={zoomPhoto.title}
-              className="max-h-[75vh] w-auto rounded-lg object-contain"
-            />
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       {selectedMemo && (
         <MemoKeluarPrintModal
