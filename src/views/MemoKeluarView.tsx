@@ -19,6 +19,7 @@ import {
 import { securityApi } from '../api/client';
 import { MemoKeluarItem, MsFoto } from '../types';
 import { formatPlate, normalizePlate } from '../utils/plate';
+import { MemoKeluarPrintModal, MemoKeluarPrintData } from '../components/security/MemoKeluarPrintModal';
 
 const InfoField: React.FC<{
   label: string;
@@ -41,6 +42,7 @@ export const MemoKeluarView: React.FC = () => {
   const [selectedMemo, setSelectedMemo] = useState<MemoKeluarItem | null>(null);
   const [memoPhotos, setMemoPhotos] = useState<MsFoto[]>([]);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   const fetchMemos = async (q?: string) => {
     try {
@@ -457,15 +459,35 @@ export const MemoKeluarView: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => setIsPrintModalOpen(true)}
                 className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#12388F] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-[#12388F]/25 transition hover:bg-[#0D2A6B]"
               >
                 <Printer className="h-4 w-4" />
-                <span>Cetak Memo Keluar</span>
+                <span>Cetak Memo Keluar (Thermal 80mm)</span>
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {selectedMemo && (
+        <MemoKeluarPrintModal
+          memo={{
+            id: selectedMemo.id,
+            nomor_memo: selectedMemo.nomor_memo || selectedMemo.nomor_tiket,
+            nomor_tiket: selectedMemo.nomor_tiket,
+            no_polisi: selectedMemo.no_polisi,
+            nama_pengemudi: selectedMemo.nama_pengemudi,
+            pic_tujuan: selectedMemo.pic_tujuan || selectedMemo.nama_pengemudi || '-',
+            waktu_masuk: selectedMemo.waktu_masuk,
+            waktu_keluar: selectedMemo.waktu_check_out,
+            petugas_keluar: selectedMemo.petugas_security_keluar || 'Security',
+            durasi: '-',
+            catatan_keluar: selectedMemo.catatan_keluar,
+          }}
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+        />
       )}
     </div>
   );

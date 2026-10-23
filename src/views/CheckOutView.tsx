@@ -18,6 +18,7 @@ import {
 import { securityApi } from '../api/client';
 import { ActiveInsideVehicle } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
+import { MemoKeluarPrintModal } from '../components/security/MemoKeluarPrintModal';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { formatPlate, normalizePlate } from '../utils/plate';
 
@@ -62,6 +63,7 @@ export const CheckOutView: React.FC = () => {
   // Status & Success state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [successMemo, setSuccessMemo] = useState<{
     id: number;
     nomor_memo: string;
@@ -145,6 +147,7 @@ export const CheckOutView: React.FC = () => {
         petugas_keluar: currentUser?.nama || 'Pos Security KIM 3',
         durasi: formatDuration(selectedVehicle.waktu_masuk) || '-',
       });
+      setIsPrintModalOpen(true);
     } catch (err: any) {
       console.error('Check out error:', err);
       setErrorMsg(err.response?.data?.message || 'Gagal memproses check out.');
@@ -154,6 +157,7 @@ export const CheckOutView: React.FC = () => {
   };
 
   const handleReset = () => {
+    setIsPrintModalOpen(false);
     setSuccessMemo(null);
     setSelectedVehicle(null);
     setPlateInput('');
@@ -250,13 +254,20 @@ export const CheckOutView: React.FC = () => {
               Check Out Berikutnya
             </button>
             <button
-              onClick={() => window.print()}
+              onClick={() => setIsPrintModalOpen(true)}
               className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-xs font-semibold text-[#0F172A] transition hover:bg-[#F8FAFC]"
             >
               <Printer className="h-4 w-4 text-[#15803D]" />
-              Cetak Memo Keluar
+              Cetak Memo Keluar (Thermal 80mm)
             </button>
           </div>
+
+          <MemoKeluarPrintModal
+            memo={successMemo}
+            isOpen={isPrintModalOpen}
+            onClose={() => setIsPrintModalOpen(false)}
+            onNext={handleReset}
+          />
         </div>
       </div>
     );
