@@ -50,7 +50,7 @@ export const LoginSecurity: React.FC = () => {
     e.preventDefault();
     const cleanId = userId.trim();
     if (!cleanId || !password.trim()) {
-      setErrorMsg('Masukkan User ID Petugas serta kata sandi.');
+      setErrorMsg('Silakan masukkan User ID Petugas dan kata sandi Anda.');
       return;
     }
 
@@ -107,7 +107,7 @@ export const LoginSecurity: React.FC = () => {
           );
           return;
         } else {
-          setErrorMsg(res?.message || 'Login gagal. Periksa User ID dan Password Anda.');
+          setErrorMsg(res?.message || 'User ID atau kata sandi tidak sesuai. Silakan periksa kembali dan coba lagi.');
           return;
         }
       }
@@ -141,16 +141,23 @@ export const LoginSecurity: React.FC = () => {
         return;
       }
 
-      if (err.message === 'BASE_URL_NOT_SET') {
-        setErrorMsg(
-          'Tunnel Base URL belum diset (server tunnel laptop tim lokal belum dijalankan). Anda tetap bisa masuk langsung dengan User ID "adminPOS" & password "adminPOS" atau klik "Set URL" di bawah.'
-        );
-      } else if (err.response?.status === 401) {
-        setErrorMsg('Unauthorized (401): User ID atau Kata Sandi salah.');
+      const status = err.response?.status;
+      if (status === 401) {
+        setErrorMsg('User ID atau kata sandi yang Anda masukkan tidak sesuai. Silakan periksa kembali dan coba lagi.');
+      } else if (status === 403) {
+        setErrorMsg('Akun Anda tidak memiliki izin akses ke portal keamanan gerbang.');
+      } else if (status === 404) {
+        setErrorMsg('Layanan autentikasi POS sedang tidak tersedia. Silakan hubungi tim administrator bengkel.');
+      } else if (status && status >= 500) {
+        setErrorMsg('Terjadi kendala pada server sistem POS. Silakan coba kembali beberapa saat lagi.');
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setErrorMsg('Waktu koneksi ke server POS habis. Pastikan jaringan internet stabil dan coba kembali.');
+      } else if (err.code === 'ERR_NETWORK' || (!err.response && err.message !== 'BASE_URL_NOT_SET')) {
+        setErrorMsg('Tidak dapat terhubung ke server autentikasi POS. Pastikan koneksi internet stabil atau hubungi tim sistem.');
+      } else if (err.message === 'BASE_URL_NOT_SET') {
+        setErrorMsg('Koneksi ke server POS belum terkonfigurasi. Silakan periksa menu Set URL atau hubungi administrator.');
       } else {
-        setErrorMsg(
-          err.message || 'Gagal menghubungi server DarkoPOS. Pastikan tunnel aktif atau gunakan akun fallback.'
-        );
+        setErrorMsg('Gagal masuk ke sistem. Silakan periksa kembali data akun Anda atau coba beberapa saat lagi.');
       }
     } finally {
       setIsLoading(false);
