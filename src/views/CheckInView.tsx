@@ -88,6 +88,7 @@ export const CheckInView: React.FC = () => {
   const [namaPengemudi, setNamaPengemudi] = useState('');
   const [noTelpPengemudi, setNoTelpPengemudi] = useState('');
   const [tipeKunjungan, setTipeKunjungan] = useState('Service');
+  const [customTipeKunjungan, setCustomTipeKunjungan] = useState('');
   const [keluhan, setKeluhan] = useState('');
   const [catatanMasuk, setCatatanMasuk] = useState('');
 
@@ -125,12 +126,22 @@ export const CheckInView: React.FC = () => {
 
     if (candidate.source === 'BOOKING') {
       const layanan = (candidate.jenis_layanan || '').toLowerCase();
-      if (layanan.includes('pickup')) setTipeKunjungan('Pickup');
-      else if (layanan.includes('kunjungan') || layanan.includes('tamu')) {
+      if (layanan.includes('part') || layanan.includes('sparepart') || layanan.includes('beli')) {
+        setTipeKunjungan('Beli Part');
+        setCustomTipeKunjungan('');
+      } else if (layanan.includes('kunjungan') || layanan.includes('tamu')) {
         setTipeKunjungan('Kunjungan');
-      } else if (layanan.includes('service')) setTipeKunjungan('Service');
-      else if (layanan) setTipeKunjungan('Lainnya');
-      else setTipeKunjungan('Service');
+        setCustomTipeKunjungan('');
+      } else if (layanan.includes('service') || layanan.includes('servis')) {
+        setTipeKunjungan('Service');
+        setCustomTipeKunjungan('');
+      } else if (layanan) {
+        setTipeKunjungan('Lainnya');
+        setCustomTipeKunjungan(candidate.jenis_layanan || '');
+      } else {
+        setTipeKunjungan('Service');
+        setCustomTipeKunjungan('');
+      }
     }
   };
 
@@ -224,6 +235,7 @@ export const CheckInView: React.FC = () => {
       setNoTelpPengemudi('');
       setKeluhan('');
       setTipeKunjungan('Service');
+      setCustomTipeKunjungan('');
     }
   };
 
@@ -299,6 +311,7 @@ export const CheckInView: React.FC = () => {
     if (cleanPlate.length < 3) return false;
     if (namaPengemudi.trim() === '') return false;
     if (picValue.trim() === '') return false;
+    if (tipeKunjungan === 'Lainnya' && customTipeKunjungan.trim() === '') return false;
     if (selectedBooking) return isBookingConfirmed;
     if (selectedUnit) return !selectedUnit.has_active_booking;
     if (hasActiveBookingForPlate) return false; // wajib pilih booking aktif
@@ -325,6 +338,10 @@ export const CheckInView: React.FC = () => {
       const generatedTiket = generateTicketNumber();
       const bookingId = selectedBooking?.booking_id ?? null;
       const jenisKedatangan: 'BOOKING' | 'WALK_IN' = selectedBooking ? 'BOOKING' : 'WALK_IN';
+      const effectiveTipeKunjungan = tipeKunjungan === 'Lainnya'
+        ? (customTipeKunjungan.trim() || 'Lainnya')
+        : tipeKunjungan;
+
       const payload = {
         nomor_tiket: generatedTiket,
         booking_id: bookingId,
@@ -333,7 +350,7 @@ export const CheckInView: React.FC = () => {
         nama_pengemudi: namaPengemudi.trim(),
         no_telepon_pengemudi: noTelpPengemudi.trim(),
         pic_tujuan: picValue || undefined,
-        tipe_kunjungan: tipeKunjungan,
+        tipe_kunjungan: effectiveTipeKunjungan,
         keluhan: keluhan.trim() || 'Pengecekan umum armada',
         petugas_security: currentUser?.nama || 'Pos Security KIM 3',
         catatan_masuk: catatanMasuk.trim() || undefined,
@@ -389,7 +406,7 @@ export const CheckInView: React.FC = () => {
         nama_driver: result?.nama_pengemudi || payload.nama_pengemudi,
         jenis: result?.jenis_kedatangan === 'BOOKING' || bookingId !== null ? 'BOOKING' : 'WALK_IN',
         booking_id: result?.booking_id ?? bookingId,
-        tujuan: tipeKunjungan,
+        tujuan: effectiveTipeKunjungan,
         keperluan: payload.keluhan,
         kontak: payload.no_telepon_pengemudi || '-',
         pic: picValue || '-',
@@ -428,6 +445,7 @@ export const CheckInView: React.FC = () => {
     setNamaPengemudi('');
     setNoTelpPengemudi('');
     setTipeKunjungan('Service');
+    setCustomTipeKunjungan('');
     setKeluhan('');
     setCatatanMasuk('');
     setSelectedPicId('');
@@ -739,22 +757,46 @@ export const CheckInView: React.FC = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="checkin-type" className={LABEL_CLASS}>
-                Tujuan Kedatangan
+                Tujuan Kedatangan <span className="text-[#DC2626]">*</span>
               </label>
               <div className="relative">
                 <select
                   id="checkin-type"
                   value={tipeKunjungan}
-                  onChange={(e) => setTipeKunjungan(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setTipeKunjungan(val);
+                    if (val !== 'Lainnya') {
+                      setCustomTipeKunjungan('');
+                    }
+                  }}
                   className={`${FIELD_CLASS} appearance-none pr-8`}
                 >
                   <option value="Service">Service</option>
                   <option value="Kunjungan">Kunjungan</option>
-                  <option value="Pickup">Pickup</option>
-                  <option value="Lainnya">Lainnya</option>
+                  <option value="Beli Part">Beli Part</option>
+                  <option value="Lainnya">Lainnya (Isi Sendiri)</option>
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" />
               </div>
+
+              {tipeKunjungan === 'Lainnya' && (
+                <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <input
+                    type="text"
+                    required
+                    value={customTipeKunjungan}
+                    onChange={(e) => setCustomTipeKunjungan(e.target.value)}
+                    placeholder="Tuliskan tujuan kedatangan..."
+                    maxLength={30}
+                    className={FIELD_CLASS}
+                    autoFocus
+                  />
+                  <p className="mt-1 text-[10px] text-[#64748B]">
+                    Tujuan kedatangan kustom akan dicatat ke database dan tiket masuk.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
