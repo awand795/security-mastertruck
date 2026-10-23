@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   FileText,
   Search,
@@ -38,32 +39,25 @@ const InfoField: React.FC<{
 );
 
 export const MemoKeluarView: React.FC = () => {
-  const [memoList, setMemoList] = useState<MemoKeluarItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedMemo, setSelectedMemo] = useState<MemoKeluarItem | null>(null);
   const [memoPhotos, setMemoPhotos] = useState<MsFoto[]>([]);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [zoomPhoto, setZoomPhoto] = useState<{ url: string; title: string } | null>(null);
 
-  const fetchMemos = async (q?: string) => {
-    try {
-      setIsLoading(true);
-      const data = await securityApi.getMemoKeluar(q);
-      setMemoList(data);
-    } catch (err) {
-      console.error('Error fetching memo keluar:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const term = searchTerm.trim();
+  const queryParam = /^[A-Za-z]{1,2}[\s-]*\d/.test(term) ? normalizePlate(term) : term;
 
-  useEffect(() => {
-    const term = searchTerm.trim();
-    const looksLikePlate = /^[A-Za-z]{1,2}[\s-]*\d/.test(term);
-    fetchMemos(looksLikePlate ? normalizePlate(term) : term);
-  }, [searchTerm]);
+  const {
+    data: memoList = [],
+    isLoading,
+    refetch: fetchMemos,
+  } = useQuery({
+    queryKey: ['memo-keluar', queryParam],
+    queryFn: () => securityApi.getMemoKeluar(queryParam),
+    refetchInterval: 4000, // Auto-polling 4 detik agar sinkron dengan aktivitas gerbang
+  });
 
   const handleOpenDetail = async (memo: MemoKeluarItem) => {
     setSelectedMemo(memo);

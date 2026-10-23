@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   LogIn,
   Search,
@@ -70,6 +71,7 @@ const StatusLine: React.FC<{
 };
 
 export const CheckInView: React.FC = () => {
+  const queryClient = useQueryClient();
   const currentUser = useSecurityStore((state) => state.user);
 
   // Unified Plate Input
@@ -407,6 +409,9 @@ export const CheckInView: React.FC = () => {
           booking_id: result?.booking_id ?? bookingId,
         },
       });
+
+      queryClient.invalidateQueries({ queryKey: ['active-inside'] });
+      queryClient.invalidateQueries({ queryKey: ['memo-keluar'] });
 
       setIsTicketModalOpen(true);
     } catch (err: any) {

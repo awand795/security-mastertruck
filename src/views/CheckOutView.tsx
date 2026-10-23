@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LogOut,
   Search,
@@ -49,12 +50,11 @@ const formatDuration = (waktuMasuk: string) => {
 };
 
 export const CheckOutView: React.FC = () => {
+  const queryClient = useQueryClient();
   const currentUser = useSecurityStore((state) => state.user);
 
   const [plateInput, setPlateInput] = useState('');
-  const [activeVehicles, setActiveVehicles] = useState<ActiveInsideVehicle[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<ActiveInsideVehicle | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Exit details
@@ -78,21 +78,15 @@ export const CheckOutView: React.FC = () => {
     durasi: string;
   } | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      try {
-        setIsSearching(true);
-        const data = await securityApi.getActiveInside(normalizePlate(plateInput));
-        setActiveVehicles(data);
-      } catch (err) {
-        console.error('Error fetching inside vehicles:', err);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 200);
-
-    return () => clearTimeout(timer);
-  }, [plateInput]);
+  const normalizedPlate = normalizePlate(plateInput);
+  const {
+    data: activeVehicles = [],
+    isLoading: isSearching,
+  } = useQuery({
+    queryKey: ['active-inside', normalizedPlate],
+    queryFn: () => securityApi.getActiveInside(normalizedPlate),
+    refetchInterval: 4000, // Auto-polling 4 detik agar sinkron saat ada armada baru masuk/keluar
+  });
 
   const handleSelectVehicle = (v: ActiveInsideVehicle) => {
     setSelectedVehicle(v);
@@ -162,6 +156,9 @@ export const CheckOutView: React.FC = () => {
           nomor_tiket: selectedVehicle.nomor_tiket,
         },
       });
+
+      queryClient.invalidateQueries({ queryKey: ['active-inside'] });
+      queryClient.invalidateQueries({ queryKey: ['memo-keluar'] });
 
       setIsPrintModalOpen(true);
     } catch (err: any) {
