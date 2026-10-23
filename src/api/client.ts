@@ -8,7 +8,7 @@ import {
   MsFoto,
 } from '../types';
 
-const API_BASE = '/api';
+const API_BASE = '/api/data';
 const API_KEY = 'KIM3-SECURE-TOKEN-2026-X998A7B6C';
 
 export const apiClient = axios.create({
