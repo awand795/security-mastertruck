@@ -7,6 +7,7 @@ import {
   EmployeeItem,
   MemoKeluarItem,
   MsFoto,
+  UserStoreInfo,
 } from '../types';
 
 const API_BASE = '/api/data';
@@ -50,22 +51,36 @@ export const securityApi = {
   },
 
   // 1c. Daftar karyawan aktif (sch_pos.tbl_employee) untuk dropdown PIC
-  getEmployees: async (query?: string): Promise<EmployeeItem[]> => {
+  getEmployees: async (query?: string, kodeCabang?: string): Promise<EmployeeItem[]> => {
     const res = await apiClient.get('/kim3/security/employees', {
-      params: { q: query || '' }
+      params: { q: query || '', kode_cabang: kodeCabang || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
   },
 
+  // 1d. Ambil informasi cabang pengguna (kode_cabang & nama_cabang)
+  getUserStore: async (userId: string): Promise<UserStoreInfo | null> => {
+    try {
+      const res = await apiClient.get('/kim3/security/user-store', {
+        params: { userid: userId }
+      });
+      const data = Array.isArray(res.data) ? res.data[0] : res.data;
+      return data || null;
+    } catch {
+      return null;
+    }
+  },
+
   // 2. Check in vehicle (insert into sch_pos.kunjungan_masuk)
   postCheckIn: async (payload: {
-    nomor_tiket: string;
+    nomor_tiket?: string;
     booking_id?: number | null;
     jenis_kedatangan: 'BOOKING' | 'WALK_IN';
     no_polisi: string;
     nama_pengemudi: string;
     no_telepon_pengemudi: string;
     pic_tujuan?: string;
+    kode_cabang?: string;
     tipe_kunjungan: string;
     keluhan: string;
     petugas_security: string;
@@ -97,9 +112,9 @@ export const securityApi = {
   },
 
   // 4. Get active vehicles currently inside (waktu_check_out IS NULL)
-  getActiveInside: async (query?: string): Promise<ActiveInsideVehicle[]> => {
+  getActiveInside: async (query?: string, kodeCabang?: string): Promise<ActiveInsideVehicle[]> => {
     const res = await apiClient.get('/kim3/security/active-inside', {
-      params: { q: query || '' }
+      params: { q: query || '', kode_cabang: kodeCabang || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
   },
@@ -128,9 +143,9 @@ export const securityApi = {
   },
 
   // 6. Get memo keluar (checkout history)
-  getMemoKeluar: async (query?: string): Promise<MemoKeluarItem[]> => {
+  getMemoKeluar: async (query?: string, kodeCabang?: string): Promise<MemoKeluarItem[]> => {
     const res = await apiClient.get('/kim3/security/memo-keluar', {
-      params: { q: query || '' }
+      params: { q: query || '', kode_cabang: kodeCabang || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
   },

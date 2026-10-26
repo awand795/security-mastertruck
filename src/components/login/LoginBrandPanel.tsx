@@ -41,7 +41,7 @@ export const LoginBrandPanel: React.FC = () => {
       {PANEL_PHOTO && (
         <>
           <img src={PANEL_PHOTO} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-luminosity" />
-          <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-[#E8EFF9]/70 to-[#DCE6F5]/90" />
+          <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-white/15" />
         </>
       )}
 
@@ -83,7 +83,7 @@ export const LoginBrandPanel: React.FC = () => {
         {/* Header Identitas Brand: Logo + Headline Bersebelahan */}
         <div className="mb-6 flex items-center gap-4 xl:gap-5 login-reveal" style={{ animationDelay: '0ms' }}>
           {/* Logo Chip */}
-          <div className="bg-[#0A0D14] p-2.5 px-3.5 rounded-2xl shrink-0 inline-flex items-center border border-white/10 shadow-xl shadow-black/40">
+          <div className="bg-surface-dark p-2.5 px-3.5 rounded-2xl shrink-0 inline-flex items-center border border-white/10 shadow-xl shadow-black/40">
             <img
               src={LOGO_SRC}
               alt="Master Truck One Stop Services"
@@ -93,14 +93,14 @@ export const LoginBrandPanel: React.FC = () => {
 
           {/* Kategori Kuning + Judul Master Truck */}
           <div className="min-w-0">
-            <p className="mb-1 text-[11px] xl:text-xs uppercase tracking-[0.15em] text-[#F2C14E] lg-text-bright font-semibold flex items-center gap-1.5">
-              <span aria-hidden className="inline-block w-1.5 h-1.5 rounded-full bg-[#F2C14E] shrink-0" />
+            <p className="mb-1 text-[11px] xl:text-xs uppercase tracking-[0.15em] text-brand-amber lg-text-bright font-semibold flex items-center gap-1.5">
+              <span aria-hidden className="inline-block w-1.5 h-1.5 rounded-full bg-brand-amber shrink-0" />
               <span>Bengkel Perawatan &amp; Perbaikan Truk</span>
             </p>
             <h1 className="text-2xl xl:text-3xl font-bold tracking-tight leading-tight login-title-sheen tracking-[-0.02em]">
               Master Truck
             </h1>
-            <p className="text-xs text-[#94A3B8] font-medium tracking-wide mt-0.5">
+            <p className="text-xs text-white/70 font-medium tracking-wide mt-0.5">
               One Stop Services • KIM 3 Medan
             </p>
           </div>
@@ -108,7 +108,7 @@ export const LoginBrandPanel: React.FC = () => {
 
         <div className="login-accent-line mb-5" aria-hidden="true" />
 
-        <p className="mb-4 text-sm xl:text-[15px] leading-relaxed text-[#E2E8F0] auth-text-dark lg-p-text login-reveal" style={{ animationDelay: '120ms' }}>
+        <p className="mb-4 text-sm xl:text-[15px] leading-relaxed text-white/90 auth-text-dark lg-p-text login-reveal" style={{ animationDelay: '120ms' }}>
           Master Truck adalah bengkel spesialis perawatan dan perbaikan armada truk serta kendaraan niaga yang berbasis di Medan. Melayani servis berkala, overhaul mesin, kelistrikan, dan suku cadang untuk kawasan industri dan sekitarnya.
         </p>
 
@@ -123,15 +123,15 @@ export const LoginBrandPanel: React.FC = () => {
               <div aria-hidden="true" className="auth-icon-box lg-icon-box w-7 h-7 rounded-md flex items-center justify-center transition-colors">
                 <Icon className="w-4 h-4" />
               </div>
-              <dt className="text-xs uppercase tracking-wider text-[#CBD5E1] auth-label-dark lg-p-muted pt-1 whitespace-nowrap">{label}</dt>
-              <dd className="text-[13px] text-[#F1F5F9] auth-title-dark lg-p-title font-semibold leading-snug pt-1 [text-wrap:pretty]">{nilai}</dd>
+              <dt className="text-xs uppercase tracking-wider text-white/70 auth-label-dark lg-p-muted pt-1 whitespace-nowrap">{label}</dt>
+              <dd className="text-[13px] text-white auth-title-dark lg-p-title font-semibold leading-snug pt-1 [text-wrap:pretty]">{nilai}</dd>
             </div>
           ))}
         </dl>
 
         {/* Merek suku cadang & pelumas resmi */}
         <div className="[@media(max-height:560px)]:hidden">
-          <p className="mb-2 text-xs font-medium text-[#CBD5E1] auth-label-dark lg-p-muted">Suku Cadang &amp; Pelumas Resmi</p>
+          <p className="mb-2 text-xs font-medium text-white/70 auth-label-dark lg-p-muted">Suku Cadang &amp; Pelumas Resmi</p>
           <div className="flex flex-wrap gap-1.5">
             {merek.map((nama, index) => (
               <span

@@ -282,12 +282,12 @@ export const SelectMenu: React.FC<SelectMenuProps> = ({
             maxHeight: panelRect.maxHeight,
             zIndex: 100,
           }}
-          className="flex flex-col overflow-hidden rounded-xl border border-[#CBD5E1] bg-white shadow-2xl ring-1 ring-black/5 focus:outline-hidden"
+          className="flex flex-col overflow-hidden rounded-xl border border-border-strong bg-surface-raised shadow-pop ring-1 ring-black/5 focus:outline-hidden"
         >
           {searchable && (
-            <div className="shrink-0 border-b border-[#E2E8F0] p-2">
+            <div className="shrink-0 border-b border-border p-2">
               <div className="relative flex items-center">
-                <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-[#94A3B8]" />
+                <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-ink-subtle" />
                 <input
                   ref={searchRef}
                   type="text"
@@ -295,7 +295,7 @@ export const SelectMenu: React.FC<SelectMenuProps> = ({
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={searchPlaceholder}
                   aria-label={searchPlaceholder}
-                  className="w-full rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] py-1.5 pr-2.5 pl-8 text-xs text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#12388F] focus:bg-white focus:ring-2 focus:ring-[#12388F]/30 focus:outline-hidden"
+                  className="w-full rounded-lg border border-border-strong bg-surface-sunken py-2.5 pr-2.5 pl-8 text-base text-ink placeholder:text-ink-subtle focus:border-accent focus:bg-surface-raised focus:ring-2 focus:ring-accent/30 focus:outline-hidden"
                 />
               </div>
             </div>
@@ -303,7 +303,7 @@ export const SelectMenu: React.FC<SelectMenuProps> = ({
 
           <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1">
             {filtered.length === 0 && (
-              <p className="px-2.5 py-4 text-center text-xs text-[#94A3B8]">{emptyMessage}</p>
+              <p className="px-2.5 py-4 text-center text-xs text-ink-subtle">{emptyMessage}</p>
             )}
 
             {grouped.map((section) => (
@@ -315,7 +315,7 @@ export const SelectMenu: React.FC<SelectMenuProps> = ({
                 {section.group && (
                   <p
                     aria-hidden="true"
-                    className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-[#94A3B8]"
+                    className="px-2.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-ink-subtle"
                   >
                     {section.group}
                   </p>
@@ -332,14 +332,14 @@ export const SelectMenu: React.FC<SelectMenuProps> = ({
                       data-option-index={index}
                       onClick={() => commit(option.value)}
                       onMouseEnter={() => setActiveIndex(index)}
-                      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${
-                        isActive ? 'bg-[#EEF2F9] text-[#12388F]' : 'text-[#0F172A] hover:bg-[#F8FAFC]'
+                      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-3.5 text-left text-xs font-medium transition-colors ${
+                        isActive ? 'bg-accent-subtle text-accent' : 'text-ink hover:bg-surface-sunken'
                       } ${isSelected ? 'font-bold' : ''}`}
                     >
                       <span className="truncate">{option.label}</span>
                       <span className="flex shrink-0 items-center gap-1.5">
                         {option.hint && (
-                          <span className="rounded-md bg-[#F1F5F9] px-1.5 py-0.5 text-[10px] font-semibold text-[#64748B]">
+                          <span className="rounded-md bg-surface-sunken px-1.5 py-0.5 text-[10px] font-semibold text-ink-muted">
                             {option.hint}
                           </span>
                         )}
@@ -375,13 +375,13 @@ export const SelectMenu: React.FC<SelectMenuProps> = ({
             openPanel();
           }
         }}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-left text-sm font-medium transition focus:border-[#12388F] focus:ring-2 focus:ring-[#12388F]/15 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-60 ${
-          open ? 'ring-2 ring-[#12388F]/15' : ''
-        } ${selected ? 'text-[#0F172A]' : 'text-[#94A3B8]'} ${buttonClassName}`}
+        className={`flex min-h-[50px] w-full items-center justify-between gap-2 rounded-xl border border-border-strong bg-surface-raised px-3.5 py-3 text-left text-base font-medium transition focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-60 ${
+          open ? 'ring-2 ring-accent/20' : ''
+        } ${selected ? 'text-ink' : 'text-ink-subtle'} ${buttonClassName}`}
       >
         <span className="truncate">{selected ? selected.label : placeholder}</span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-[#94A3B8] transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 shrink-0 text-ink-subtle transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
 

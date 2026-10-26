@@ -1,0 +1,27 @@
+{
+  "name": "Security Gate - Bengkel Master Truck KIM 3",
+  "short_name": "Security KIM 3",
+  "description": "Portal Pos Security Gerbang Bengkel Master Truck KIM 3: check in, check out, dan gate pass armada.",
+  "lang": "id",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF2F7",
+  "theme_color": "#12388F",
+  "icons": [
+    {
+      "src": "/master-truck-logo.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/master-truck-logo-transparent.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

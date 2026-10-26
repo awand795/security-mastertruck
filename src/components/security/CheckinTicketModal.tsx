@@ -422,45 +422,46 @@ export const CheckinTicketModal: React.FC<CheckinTicketModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-overlay p-4 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]"
+        className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-pop animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border bg-surface-sunken px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-status-green-bg text-status-green">
               <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900">Check In Berhasil</h3>
-              <p className="text-xs text-slate-500">Karcis izin masuk gerbang siap dicetak</p>
+              <h3 className="text-base font-bold text-ink">Check In Berhasil</h3>
+              <p className="text-xs text-ink-muted">Karcis izin masuk gerbang siap dicetak</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition cursor-pointer"
+            aria-label="Tutup"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl text-ink-subtle transition hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Format Selector Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-100/70 px-5 py-2.5">
-          <span className="text-xs font-semibold text-slate-600 mr-1">Format Cetak:</span>
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-sunken px-5 py-2.5">
+          <span className="mr-1 text-xs font-semibold text-ink-muted">Format Cetak:</span>
           <button
             type="button"
             onClick={() => setPrintFormat('thermal')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
               printFormat === 'thermal'
-                ? 'bg-white text-[#12388F] shadow-xs border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                ? 'bg-surface-raised text-accent shadow-card border border-border'
+                : 'border border-transparent text-ink-muted hover:text-ink hover:bg-surface'
             }`}
           >
             <Receipt className="h-3.5 w-3.5" />
@@ -469,10 +470,10 @@ export const CheckinTicketModal: React.FC<CheckinTicketModalProps> = ({
           <button
             type="button"
             onClick={() => setPrintFormat('official')}
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
               printFormat === 'official'
-                ? 'bg-white text-[#12388F] shadow-xs border border-slate-200'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                ? 'bg-surface-raised text-accent shadow-card border border-border'
+                : 'border border-transparent text-ink-muted hover:text-ink hover:bg-surface'
             }`}
           >
             <FileText className="h-3.5 w-3.5" />
@@ -480,11 +481,11 @@ export const CheckinTicketModal: React.FC<CheckinTicketModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Content / Preview Tiket */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 bg-slate-100/50">
+        {/* Modal Content / Preview Tiket (area kertas selalu terang) */}
+        <div className="flex-1 space-y-4 overflow-y-auto bg-surface p-5 sm:p-6">
           {printFormat === 'thermal' ? (
             /* PREVIEW STRUK THERMAL 80MM */
-            <div className="mx-auto max-w-[320px] rounded-xl border border-dashed border-slate-300 bg-white p-5 font-sans text-slate-900 shadow-md">
+            <div className="print-paper mx-auto max-w-[320px] rounded-xl border border-dashed border-slate-300 bg-white p-5 font-sans text-slate-900 shadow-md">
               {/* Kop Bengkel */}
               <div className="text-center pb-2">
                 <p className="text-[9px] font-black tracking-widest uppercase text-slate-400">
@@ -579,7 +580,7 @@ export const CheckinTicketModal: React.FC<CheckinTicketModalProps> = ({
             </div>
           ) : (
             /* PREVIEW DOKUMEN RESMI A4/A5 */
-            <div className="mx-auto rounded-xl border border-slate-300 bg-white p-5 font-sans text-slate-900 shadow-md">
+            <div className="print-paper mx-auto rounded-xl border border-slate-300 bg-white p-5 font-sans text-slate-900 shadow-md">
               <div className="flex justify-between items-start border-b-2 border-slate-900 pb-3">
                 <div>
                   <h4 className="text-base font-black text-slate-900 uppercase">BENGKEL MASTER TRUK KIM 3</h4>
@@ -627,11 +628,11 @@ export const CheckinTicketModal: React.FC<CheckinTicketModalProps> = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3.5 flex flex-col-reverse sm:flex-row items-center justify-between gap-2.5">
+        <div className="flex flex-col-reverse items-center justify-between gap-2.5 border-t border-border bg-surface-sunken px-5 py-3.5 sm:flex-row">
           <button
             type="button"
             onClick={onNextCheckin}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-100 transition cursor-pointer"
+            className="w-full cursor-pointer rounded-xl border border-border-strong bg-surface-raised px-4 py-3 text-xs font-semibold text-ink shadow-card transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:w-auto"
           >
             Check In Berikutnya
           </button>
@@ -639,11 +640,15 @@ export const CheckinTicketModal: React.FC<CheckinTicketModalProps> = ({
           <button
             type="button"
             onClick={handlePrint}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#12388F] px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-[#12388F]/25 hover:bg-[#0D2A6B] transition cursor-pointer"
+            className="w-full cursor-pointer rounded-xl bg-accent px-5 py-3 text-xs font-bold text-accent-on shadow-card transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:w-auto"
           >
-            <Printer className="h-4 w-4" />
-            <span>
-              {printFormat === 'thermal' ? 'Cetak Struk Thermal (80mm)' : 'Cetak Dokumen Resmi (A4/A5)'}
+            <span className="inline-flex items-center justify-center gap-2">
+              <Printer className="h-4 w-4" />
+              <span>
+                {printFormat === 'thermal'
+                  ? 'Cetak Struk Thermal (80mm)'
+                  : 'Cetak Dokumen Resmi (A4/A5)'}
+              </span>
             </span>
           </button>
         </div>

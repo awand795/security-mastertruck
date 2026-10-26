@@ -299,47 +299,48 @@ export const MemoKeluarPrintModal: React.FC<MemoKeluarPrintModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-overlay p-4 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl animate-in zoom-in-95 duration-200"
+        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-surface-raised shadow-pop animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
           {/* Modal Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-[#F0FDF4] px-5 py-4">
+          <div className="flex shrink-0 items-center justify-between border-b border-border bg-status-green-bg px-5 py-4">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#DCFCE7] text-[#16A34A] shadow-xs">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-status-green-fill text-white shadow-card">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-[#0F172A]">Cetak Memo Keluar & Gate Pass</h3>
-                <p className="text-[11px] font-medium text-[#15803D]">
+                <h3 className="text-sm font-bold text-ink">Cetak Memo Keluar &amp; Gate Pass</h3>
+                <p className="text-[11px] font-medium text-status-green">
                   Pilih format cetak resmi (A4/A5) atau struk thermal (80mm)
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+              aria-label="Tutup"
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl text-ink-muted transition hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Format Selector Bar */}
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-2.5">
-            <span className="text-xs font-bold text-slate-700">Pilih Format Cetak:</span>
-            <div className="inline-flex rounded-xl bg-slate-200/80 p-1">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-sunken px-5 py-2.5">
+            <span className="text-xs font-bold text-ink">Pilih Format Cetak:</span>
+            <div className="inline-flex rounded-xl bg-surface p-1">
               <button
                 type="button"
                 onClick={() => setPrintFormat('official')}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                   printFormat === 'official'
-                    ? 'bg-white text-[#12388F] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-surface-raised text-accent shadow-card'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 <FileText className="h-3.5 w-3.5" />
@@ -348,10 +349,10 @@ export const MemoKeluarPrintModal: React.FC<MemoKeluarPrintModalProps> = ({
               <button
                 type="button"
                 onClick={() => setPrintFormat('thermal')}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                   printFormat === 'thermal'
-                    ? 'bg-white text-[#15803D] shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-surface-raised text-accent shadow-card'
+                    : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 <Receipt className="h-3.5 w-3.5" />
@@ -360,11 +361,11 @@ export const MemoKeluarPrintModal: React.FC<MemoKeluarPrintModalProps> = ({
             </div>
           </div>
 
-          {/* Modal Body: Scrollable Preview */}
-          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100/60 p-5">
+          {/* Modal Body: Scrollable Preview (area kertas selalu terang) */}
+          <div className="min-h-0 flex-1 overflow-y-auto bg-surface p-5">
             {printFormat === 'official' ? (
               /* PREVIEW DOKUMEN RESMI A4 / A5 */
-              <div className="mx-auto max-w-[560px] rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
+              <div className="print-paper mx-auto max-w-[560px] rounded-xl border border-slate-300 bg-white p-6 shadow-sm">
                 <div id="printable-official-memo">
                   {/* KOP RESMI */}
                   <div className="kop-header flex items-center justify-between border-b-2 border-slate-900 pb-3">
@@ -483,7 +484,7 @@ export const MemoKeluarPrintModal: React.FC<MemoKeluarPrintModalProps> = ({
               </div>
             ) : (
               /* PREVIEW STRUK THERMAL 80MM */
-              <div className="mx-auto max-w-[320px] rounded-xl border border-dashed border-slate-300 bg-white p-5 shadow-xs">
+              <div className="print-paper mx-auto max-w-[320px] rounded-xl border border-dashed border-slate-300 bg-white p-5 shadow-xs">
                 <div id="printable-thermal-memo" className="text-center font-mono text-slate-900">
                   <div className="header-title text-sm font-black tracking-wider uppercase">
                     BENGKEL KIM 3
@@ -554,12 +555,12 @@ export const MemoKeluarPrintModal: React.FC<MemoKeluarPrintModalProps> = ({
           </div>
 
           {/* Modal Footer */}
-          <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-slate-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-end">
+          <div className="flex shrink-0 flex-col-reverse gap-2.5 border-t border-border bg-surface-sunken p-4 sm:flex-row sm:items-center sm:justify-end">
             {onNext && (
               <button
                 type="button"
                 onClick={onNext}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface-raised px-4 py-3 text-xs font-semibold text-ink transition hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
               >
                 Check Out Berikutnya
               </button>
@@ -567,7 +568,7 @@ export const MemoKeluarPrintModal: React.FC<MemoKeluarPrintModalProps> = ({
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#12388F] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#0D2A6B]"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-xs font-bold text-accent-on shadow-card transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             >
               <Printer className="h-4 w-4" />
               {printFormat === 'official' ? 'Cetak Surat Gate Pass Resmi (A4/A5)' : 'Cetak Struk Thermal (80mm)'}

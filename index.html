@@ -4,12 +4,39 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/master-truck-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#EEF2F7" />
+    <meta name="description" content="Portal Pos Security Gerbang Bengkel Master Truck KIM 3 - Check In, Check Out, dan Gate Pass armada." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Security KIM 3" />
     <title>Security Gate - Bengkel Master Truck KIM 3</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Terapkan tema tersimpan SEBELUM React render agar tidak ada flash tema salah -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('kim3-gate-theme');
+          var parsed = raw ? JSON.parse(raw) : null;
+          var mode = parsed && parsed.version >= 1 && parsed.state ? parsed.state.mode : 'light';
+          if (mode !== 'light' && mode !== 'dark' && mode !== 'system') mode = 'light';
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var resolved = mode === 'system' ? (prefersDark ? 'dark' : 'light') : mode;
+          var root = document.documentElement;
+          root.classList.toggle('dark', resolved === 'dark');
+          root.style.colorScheme = resolved;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', resolved === 'dark' ? '#070F1E' : '#EEF2F7');
+        } catch (e) {
+          /* abaikan: tema default tetap terang */
+        }
+      })();
+    </script>
   </head>
-  <body class="bg-[#F2F4F5] text-[#1B2126] font-sans antialiased selection:bg-accent selection:text-white">
+  <body class="font-sans antialiased selection:bg-accent selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

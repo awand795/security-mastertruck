@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSecurityStore } from './store/useSecurityStore';
+import { applyTheme, useThemeStore } from './store/useThemeStore';
 import { LoginSecurity } from './views/LoginSecurity';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
-import { MobileBottomNav, SecurityTab } from './components/layout/MobileBottomNav';
+import { SecurityTab } from './components/layout/MobileBottomNav';
+import { BottomChrome, BottomChromeProvider } from './components/layout/BottomChrome';
 import { CheckInView } from './views/CheckInView';
 import { CheckOutView } from './views/CheckOutView';
 import { MemoKeluarView } from './views/MemoKeluarView';
@@ -11,6 +13,19 @@ import { MemoKeluarView } from './views/MemoKeluarView';
 export const App: React.FC = () => {
   const { isAuthenticated } = useSecurityStore();
   const [activeTab, setActiveTab] = useState<SecurityTab>('check-in');
+
+  // Sinkronkan tema saat mount + ikuti perubahan preferensi OS (mode "Otomatis")
+  useEffect(() => {
+    applyTheme();
+
+    if (!window.matchMedia) return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      if (useThemeStore.getState().mode === 'system') applyTheme('system');
+    };
+    media.addEventListener('change', handleChange);
+    return () => media.removeEventListener('change', handleChange);
+  }, []);
 
   if (!isAuthenticated) {
     return <LoginSecurity />;
@@ -29,27 +44,29 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="app-layout min-h-screen bg-[#EEF2F7] flex flex-col font-sans text-[#0F172A] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
-      {/* Top Navbar Header (Theme Web Fleet) */}
-      <Navbar activeTab={activeTab} onChangeTab={setActiveTab} />
+    <BottomChromeProvider>
+      <div className="app-layout flex h-[100dvh] flex-col bg-surface font-sans text-ink">
+        {/* Top Header (mobile & desktop) */}
+        <Navbar activeTab={activeTab} onChangeTab={setActiveTab} />
 
-      <div className="flex flex-1 w-full overflow-hidden">
-        {/* Desktop Sidebar (Theme Web Fleet, Layar >= 1024px) */}
-        <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} />
+        <div className="flex min-h-0 w-full flex-1">
+          {/* Sidebar: hanya desktop >= xl */}
+          <Sidebar activeTab={activeTab} onChangeTab={setActiveTab} />
 
-        {/* Main Content Dashboard Area */}
-        <main className="dashboard-page flex-1 overflow-y-auto max-h-[calc(100vh-64px)] bg-[#EEF2F7]">
-          <div className="max-w-[1400px] mx-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
-            <div key={activeTab} className="app-page-transition w-full">
-              {renderActiveView()}
+          {/* Area scroll utama: padding bawah mengikuti tinggi BottomChrome */}
+          <main className="dashboard-page min-h-0 flex-1 overflow-y-auto overscroll-contain bg-surface">
+            <div className="mx-auto w-full max-w-3xl px-4 pb-[calc(var(--bottom-chrome-h,7.5rem)+1rem)] pt-4 sm:px-6 md:max-w-4xl xl:max-w-[1400px] xl:px-8 xl:pb-10 xl:pt-6">
+              <div key={activeTab} className="app-page-transition w-full">
+                {renderActiveView()}
+              </div>
             </div>
-          </div>
-        </main>
-      </div>
+          </main>
+        </div>
 
-      {/* Floating Bottom Nav for Mobile & Tablet Viewport (< 1024px) */}
-      <MobileBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
-    </div>
+        {/* Bottom chrome: tab bar + slot aksi (mobile & tablet, < 1280px) */}
+        <BottomChrome activeTab={activeTab} onChangeTab={setActiveTab} />
+      </div>
+    </BottomChromeProvider>
   );
 };
 

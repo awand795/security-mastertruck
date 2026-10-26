@@ -7,6 +7,8 @@ export interface KunjunganMasuk {
   nama_pengemudi: string;
   no_telepon_pengemudi: string;
   pic_tujuan?: string | null;
+  pic_tujuan_id?: string | null;
+  kode_cabang?: string | null;
   tipe_kunjungan: string;
   keluhan: string;
   waktu_masuk: string;
@@ -94,6 +96,7 @@ export interface CheckinResponse {
   no_polisi?: string | null;
   nama_pengemudi?: string | null;
   waktu_masuk?: string | number | null;
+  kode_cabang?: string | null;
 }
 
 export interface ActiveInsideVehicle {
@@ -105,11 +108,15 @@ export interface ActiveInsideVehicle {
   nama_pengemudi: string;
   no_telepon_pengemudi: string;
   pic_tujuan?: string | null;
+  pic_tujuan_id?: string | null;
+  kode_cabang?: string | null;
   tipe_kunjungan: string;
   keluhan: string;
   waktu_masuk: string;
   petugas_security_masuk: string;
   catatan_masuk?: string;
+  durasi_jam?: number;
+  foto_masuk?: string | null;
 }
 
 export interface MemoKeluarItem {
@@ -119,6 +126,8 @@ export interface MemoKeluarItem {
   no_polisi: string;
   nama_pengemudi: string;
   pic_tujuan?: string | null;
+  pic_tujuan_id?: string | null;
+  kode_cabang?: string | null;
   jenis_kedatangan: string;
   tipe_kunjungan: string;
   keluhan: string;
@@ -127,6 +136,7 @@ export interface MemoKeluarItem {
   petugas_security_masuk: string;
   petugas_security_keluar: string;
   catatan_keluar?: string;
+  durasi_jam?: number;
 }
 
 export interface EmployeeItem {
@@ -160,6 +170,14 @@ export interface DarkoPosLoginResponse {
   id_token?: string;
 }
 
+export interface UserStoreInfo {
+  userid: string;
+  fullname?: string;
+  store_id?: number;
+  kode_cabang?: string;
+  nama_cabang?: string;
+}
+
 export interface SecurityUser {
   id: string;
   nama: string;
@@ -169,4 +187,7 @@ export interface SecurityUser {
   company?: string;
   id_token?: string;
   profile?: DarkoPosProfile;
+  kode_cabang?: string;
+  nama_cabang?: string;
+  store_id?: number;
 }
