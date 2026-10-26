@@ -187,7 +187,7 @@ export const CheckInView: React.FC = () => {
     }
   };
 
-  // Sinkronisasi status booking kandidat terkini (misal admin baru konfirmasi di Web Fleet)
+  // Sinkronisasi status booking kandidat terkini (hanya jika user SUDAH memilih kandidat)
   useEffect(() => {
     if (lookupPlate.length < 3) {
       selectedCandidateRef.current = null;
@@ -195,34 +195,30 @@ export const CheckInView: React.FC = () => {
       return;
     }
 
-    // Jika sudah ada pilihan sebelumnya, selalu sinkronkan dengan status terbaru dari server
+    // Jika user SUDAH memilih kandidat secara manual atau lewat exact match lengkap, sinkronkan statusnya
     const currentSelected = selectedCandidateRef.current;
     if (currentSelected && currentSelected.no_polisi_clean === lookupPlate) {
       const fresh = candidates.find((item) => candidateKey(item) === candidateKey(currentSelected));
       if (fresh) {
         selectedCandidateRef.current = fresh;
         setSelectedCandidate(fresh);
-        // Jika statusnya sekarang terkonfirmasi, otomatis tutup alert unconfirmed
         if (fresh.is_confirmed) {
           setUnconfirmedModalCandidate(null);
         }
-        return;
       }
+      return;
     }
 
-    // Auto-select jika ada exact match tunggal
+    // Hanya auto-match jika user mengetik nopol secara LENGKAP persis (exact match)
+    // dan TIDAK otomatis memilih saat nopol baru diketik sebagian (misal baru "BK")
     const exact = candidates.filter(
       (item) =>
         item.no_polisi_clean === lookupPlate &&
         !(item.source === 'MEMBER_UNIT' && item.has_active_booking)
     );
 
-    if (exact.length === 1) {
+    if (exact.length === 1 && exact[0].no_polisi_clean === lookupPlate) {
       chooseCandidate(exact[0], false);
-    } else if (exact.length === 0 && candidates.length === 1) {
-      if (!(candidates[0].source === 'MEMBER_UNIT' && candidates[0].has_active_booking)) {
-        chooseCandidate(candidates[0], false);
-      }
     } else {
       selectedCandidateRef.current = null;
       setSelectedCandidate(null);
@@ -230,12 +226,17 @@ export const CheckInView: React.FC = () => {
   }, [candidates, lookupPlate]);
 
   const handlePlateInputChange = (value: string) => {
-    const next = formatPlate(value);
-    setPlateInput(next);
+    // Izinkan user menghapus dan mengetik bebas tanpa dipaksa format atau auto-complete macet
+    const upper = value.toUpperCase();
+    setPlateInput(upper);
     setErrorMsg(null);
     setShowSuggestions(true);
-    const current = selectedCandidateRef.current;
-    if (current && current.no_polisi_clean !== normalizePlate(next)) {
+
+    const currentClean = normalizePlate(upper);
+    const selectedClean = selectedCandidateRef.current?.no_polisi_clean;
+
+    // Jika user mengubah atau menghapus teks nopol sehingga tidak cocok lagi dengan kandidat terpilih:
+    if (selectedClean && selectedClean !== currentClean) {
       selectedCandidateRef.current = null;
       setSelectedCandidate(null);
       setNamaPengemudi('');
