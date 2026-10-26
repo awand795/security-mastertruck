@@ -349,7 +349,12 @@ export const CheckInView: React.FC = () => {
 
     try {
       const bookingId = selectedBooking?.booking_id ?? null;
-      const jenisKedatangan: 'BOOKING' | 'WALK_IN' = selectedBooking ? 'BOOKING' : 'WALK_IN';
+      const isMemberUnit = Boolean(selectedUnit && !selectedBooking);
+      const jenisKedatangan: 'BOOKING' | 'WALK_IN_MEMBER' | 'WALK_IN' = selectedBooking
+        ? 'BOOKING'
+        : isMemberUnit
+        ? 'WALK_IN_MEMBER'
+        : 'WALK_IN';
       const effectiveTipeKunjungan = tipeKunjungan === 'Lainnya'
         ? (customTipeKunjungan.trim() || 'Lainnya')
         : tipeKunjungan;
@@ -418,7 +423,7 @@ export const CheckInView: React.FC = () => {
         no_polisi: result?.no_polisi || cleanPlate,
         waktu_masuk: formattedTime,
         nama_driver: result?.nama_pengemudi || payload.nama_pengemudi,
-        jenis: result?.jenis_kedatangan === 'BOOKING' || bookingId !== null ? 'BOOKING' : 'WALK_IN',
+        jenis: (result?.jenis_kedatangan || jenisKedatangan) as any,
         booking_id: result?.booking_id ?? bookingId,
         tujuan: effectiveTipeKunjungan,
         keperluan: payload.keluhan,

@@ -75,7 +75,7 @@ export const securityApi = {
   postCheckIn: async (payload: {
     nomor_tiket?: string;
     booking_id?: number | null;
-    jenis_kedatangan: 'BOOKING' | 'WALK_IN';
+    jenis_kedatangan?: 'BOOKING' | 'WALK_IN_MEMBER' | 'WALK_IN' | string;
     no_polisi: string;
     nama_pengemudi: string;
     no_telepon_pengemudi: string;
