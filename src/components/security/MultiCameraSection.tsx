@@ -252,39 +252,36 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
         })}
 
         {/* MODERN "ADD PHOTO" CARD TILE (Seperti di Web-Web Modern) */}
-        <div className="flex aspect-[4/3] min-h-[140px] flex-col justify-between rounded-2xl border-2 border-dashed border-accent/40 bg-accent/[0.03] p-2 transition-all duration-200 hover:border-accent hover:bg-accent/[0.08] hover:shadow-sm">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-[10px] font-bold text-accent">Tambah Sudut</span>
+        <div className="group relative flex flex-col justify-between rounded-2xl border border-dashed border-accent/40 bg-accent/[0.03] p-2 transition-all duration-200 hover:border-accent hover:bg-accent/[0.08] hover:shadow-xs">
+          <div className="mb-1.5 flex items-center justify-between gap-1 px-1">
+            <span className="truncate text-[10px] font-bold text-accent">
+              Tambah Sudut
+            </span>
             <span className="rounded-full bg-accent/15 px-1.5 py-0.2 text-[9px] font-bold text-accent">
-              Baru
+              + Baru
             </span>
           </div>
 
-          <div className="flex flex-col items-center justify-center gap-1.5 py-1 text-center">
+          <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-accent/30 bg-surface-raised/70 p-2 text-center transition group-hover:bg-surface-raised group-hover:border-accent/60">
             <button
               type="button"
               onClick={() => handleAddCustomSlot(true)}
-              className="group/btn flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-accent text-white shadow-sm transition hover:scale-105 hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 active:scale-95"
-              title="Tambah foto dengan kamera"
+              className="flex flex-col items-center justify-center gap-1 focus-visible:outline-none cursor-pointer"
+              title="Tambah foto lewat kamera"
             >
-              <Plus className="h-5 w-5 transition-transform duration-200 group-hover/btn:rotate-90" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-white shadow-xs transition hover:scale-110 hover:bg-accent-hover active:scale-95">
+                <Plus className="h-4 w-4" />
+              </div>
+              <span className="text-[11px] font-bold text-ink group-hover:text-accent">
+                Foto Tambahan
+              </span>
             </button>
-            <div className="space-y-0.5">
-              <span className="block text-[11px] font-bold text-ink">Foto Tambahan</span>
-              <p className="text-[9px] text-ink-muted leading-tight">
-                Bagian muatan, ban, interior, dll
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center border-t border-accent/15 pt-1.5">
             <button
               type="button"
               onClick={() => triggerUploadForSlot()}
-              className="inline-flex cursor-pointer items-center gap-1 text-[10px] font-semibold text-accent hover:underline focus-visible:outline-none"
+              className="text-[10px] font-medium text-accent hover:underline focus-visible:outline-none cursor-pointer"
             >
-              <Upload className="h-2.5 w-2.5" />
-              Upload dari galeri
+              atau upload file
             </button>
           </div>
         </div>
