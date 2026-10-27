@@ -226,13 +226,13 @@ export const CheckInView: React.FC = () => {
   }, [candidates, lookupPlate]);
 
   const handlePlateInputChange = (value: string) => {
-    // Izinkan user menghapus dan mengetik bebas tanpa dipaksa format atau auto-complete macet
-    const upper = value.toUpperCase();
-    setPlateInput(upper);
+    // Format plat berspasi otomatis untuk tampilan (misal: BK 1234 ABC)
+    const formatted = formatPlate(value);
+    setPlateInput(formatted);
     setErrorMsg(null);
     setShowSuggestions(true);
 
-    const currentClean = normalizePlate(upper);
+    const currentClean = normalizePlate(formatted);
     const selectedClean = selectedCandidateRef.current?.no_polisi_clean;
 
     // Jika user mengubah atau menghapus teks nopol sehingga tidak cocok lagi dengan kandidat terpilih:
