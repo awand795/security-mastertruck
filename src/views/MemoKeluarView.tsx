@@ -537,11 +537,16 @@ export const MemoKeluarView: React.FC = () => {
             waktu_masuk: selectedMemo.waktu_masuk,
             waktu_keluar: selectedMemo.waktu_check_out,
             petugas_keluar: selectedMemo.petugas_security_keluar || 'Security',
-            durasi: '-',
+            durasi_jam: selectedMemo.durasi_jam,
             catatan_keluar: selectedMemo.catatan_keluar,
+            tipe_kunjungan: selectedMemo.tipe_kunjungan,
+            jumlah_foto_keluar: isLoadingPhotos
+              ? undefined
+              : memoPhotos.filter((p) => p.jenis_event === 'KELUAR').length,
           }}
           isOpen={isPrintModalOpen}
           onClose={() => setIsPrintModalOpen(false)}
+          isReprint={true}
         />
       )}
     </div>

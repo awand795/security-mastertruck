@@ -76,18 +76,7 @@ export const CheckOutView: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
-  const [successMemo, setSuccessMemo] = useState<{
-    id: number;
-    nomor_memo: string;
-    nomor_tiket: string;
-    no_polisi: string;
-    nama_pengemudi: string;
-    pic_tujuan: string;
-    waktu_masuk: string;
-    waktu_keluar: string;
-    petugas_keluar: string;
-    durasi: string;
-  } | null>(null);
+  const [successMemo, setSuccessMemo] = useState<any | null>(null);
 
   const normalizedPlate = normalizePlate(plateInput);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -115,23 +104,85 @@ export const CheckOutView: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-sync jika plat input sama persis dengan armada yang aktif di bengkel
+  // Keyboard-wedge barcode/QR scanner listener global
   useEffect(() => {
-    if (normalizedPlate.length < 3) return;
+    let scanBuffer = '';
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Abaikan jika user sedang mengetik di textarea catatan
+      const target = e.target as HTMLElement;
+      if (target && target.tagName === 'TEXTAREA') return;
+
+      const currentTime = Date.now();
+      if (currentTime - lastKeyTime > 250) {
+        scanBuffer = '';
+      }
+      lastKeyTime = currentTime;
+
+      if (e.key === 'Enter') {
+        if (scanBuffer.trim().length >= 3) {
+          const query = scanBuffer.trim().toUpperCase();
+          const found = activeVehicles.find(
+            (v) =>
+              v.nomor_tiket.trim().toUpperCase() === query ||
+              normalizePlate(v.no_polisi) === normalizePlate(query)
+          );
+          if (found) {
+            e.preventDefault();
+            setSelectedVehicle(found);
+            setPlateInput(formatPlate(found.no_polisi));
+            setShowSuggestions(false);
+          }
+          scanBuffer = '';
+        }
+      } else if (e.key.length === 1) {
+        scanBuffer += e.key;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeVehicles]);
+
+  // Auto-sync jika plat atau nomor tiket input sama persis dengan armada yang aktif di bengkel
+  useEffect(() => {
+    if (!plateInput || plateInput.trim().length < 3) return;
+    const cleanPlate = normalizePlate(plateInput);
+    const rawInput = plateInput.trim().toUpperCase();
+
     const exact = activeVehicles.find(
-      (v) => normalizePlate(v.no_polisi) === normalizedPlate
+      (v) =>
+        normalizePlate(v.no_polisi) === cleanPlate ||
+        v.nomor_tiket.trim().toUpperCase() === rawInput
     );
     if (exact && (!selectedVehicle || selectedVehicle.id !== exact.id)) {
       setSelectedVehicle(exact);
+      if (exact.nomor_tiket.trim().toUpperCase() === rawInput) {
+        setPlateInput(formatPlate(exact.no_polisi));
+      }
     }
-  }, [normalizedPlate, activeVehicles, selectedVehicle]);
+  }, [plateInput, activeVehicles, selectedVehicle]);
 
   const handlePlateInputChange = (raw: string) => {
+    const rawTrimmed = raw.trim().toUpperCase();
+    // Cek jika input adalah nomor tiket (mis. TG-...)
+    const matchedByTicket = activeVehicles.find(
+      (v) => v.nomor_tiket.trim().toUpperCase() === rawTrimmed
+    );
+
+    if (matchedByTicket) {
+      setSelectedVehicle(matchedByTicket);
+      setPlateInput(formatPlate(matchedByTicket.no_polisi));
+      setShowSuggestions(false);
+      return;
+    }
+
     const formatted = formatPlate(raw);
     setPlateInput(formatted);
     const clean = normalizePlate(raw);
 
-    if (clean.length < 2) {
+    if (clean.length < 2 && rawTrimmed.length < 2) {
       setShowSuggestions(false);
       setSelectedVehicle(null);
       return;
@@ -193,9 +244,12 @@ export const CheckOutView: React.FC = () => {
         nama_pengemudi: selectedVehicle.nama_pengemudi,
         pic_tujuan: selectedVehicle.pic_tujuan || selectedVehicle.nama_pengemudi || '-',
         waktu_masuk: selectedVehicle.waktu_masuk,
-        waktu_keluar: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
+        waktu_keluar: new Date().toISOString(),
         petugas_keluar: currentUser?.nama || 'Pos Security KIM 3',
-        durasi: formatDuration(selectedVehicle.waktu_masuk) || '-',
+        catatan_keluar: catatanKeluar,
+        tipe_kunjungan: selectedVehicle.tipe_kunjungan,
+        durasi_jam: selectedVehicle.durasi_jam,
+        jumlah_foto_keluar: photos.filter((p) => Boolean(p.dataUrl)).length,
       });
 
       broadcastRealtimeEvent({
@@ -326,7 +380,7 @@ export const CheckOutView: React.FC = () => {
               className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface-raised px-4 py-3 text-xs font-bold text-ink transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-[0.99]"
             >
               <Printer className="h-4 w-4 text-status-green" />
-              Cetak Memo Keluar (Thermal 80mm)
+              Cetak Gate Pass (Memo Keluar)
             </button>
           </div>
 

@@ -426,11 +426,14 @@ export const CheckInView: React.FC = () => {
         nama_driver: result?.nama_pengemudi || payload.nama_pengemudi,
         jenis: (result?.jenis_kedatangan || jenisKedatangan) as any,
         booking_id: result?.booking_id ?? bookingId,
+        no_booking: selectedCandidate?.no_booking || undefined,
+        nama_perusahaan: selectedCandidate?.nama_perusahaan || undefined,
         tujuan: effectiveTipeKunjungan,
         keperluan: payload.keluhan,
         kontak: payload.no_telepon_pengemudi || '-',
         pic: picValue || '-',
         oleh: payload.petugas_security,
+        fotoCount: photos.filter((p) => Boolean(p.dataUrl)).length || 4,
       });
 
       broadcastRealtimeEvent({
