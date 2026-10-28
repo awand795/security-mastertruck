@@ -1,0 +1,19 @@
+# ==========================================
+# DEVELOPMENT DOCKERFILE - Pos Security Gerbang
+# ==========================================
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies first for better caching
+COPY package*.json ./
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 3500
+
+# Start Vite with host binding for Docker access
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3500"]

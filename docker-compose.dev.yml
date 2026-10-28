@@ -1,0 +1,17 @@
+services:
+  security-dev:
+    container_name: security-gerbang-dev
+    image: awandadarkotech/security-gerbang:dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3500:3500"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    restart: unless-stopped
