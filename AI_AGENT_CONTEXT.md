@@ -82,8 +82,10 @@ Portal Security menggunakan sistem autentikasi terintegrasi dengan DarkoPOS:
   }
   ```
 
-### B. Konfigurasi Tunnel & Fallback Mode
-- Staf security dapat mengklik tombol **"Set URL"** pada kartu login untuk mengatur Base URL Tunnel DarkoPOS (misalnya url ngrok atau Cloudflare Tunnel dari komputer server lokal POS).
+### B. Konfigurasi Autentikasi Production
+- Endpoint login telah diset secara fixed ke service API DarkoPOS production:
+  `http://52.77.133.95:9004/api/v1/users/login`
+- Tidak lagi menggunakan konfigurasi dynamic tunnel / modal "Set URL" agar stabil dan bebas bug di lingkungan production.
 - **Akun Fallback Pengembangan**:
   - User ID: `adminPOS` / Password: `adminPOS`
   - User ID: `security` / Password: `security123`

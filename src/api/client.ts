@@ -163,9 +163,9 @@ export const securityApi = {
     userid: string;
     password: string;
     company?: string;
-  }, customBaseUrl?: string) => {
+  }) => {
     const apiKey = import.meta.env.VITE_DARKOPOS_API_KEY || 'TURNONTHEAPI98';
-    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004').replace(/\/+$/, '');
+    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004').replace(/\/+$/, '');
 
     const response = await axios.post(
       `${baseUrl}/api/v1/users/login`,
@@ -187,8 +187,8 @@ export const securityApi = {
   },
 
   // 9. DarkoPOS Logout (/api/v1/users/logout)
-  logoutDarkoPos: async (idToken?: string | null, sessionId?: string | null, customBaseUrl?: string) => {
-    const baseUrl = (customBaseUrl || import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004').replace(/\/+$/, '');
+  logoutDarkoPos: async (idToken?: string | null, sessionId?: string | null) => {
+    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004').replace(/\/+$/, '');
     if (!baseUrl || !idToken) return;
 
     try {
@@ -210,4 +210,3 @@ export const securityApi = {
     }
   },
 };
-

@@ -8,17 +8,13 @@ interface SecurityStore {
   idToken: string | null;
   profile: DarkoPosProfile | null;
   isAuthenticated: boolean;
-  tunnelBaseUrl: string;
   kodeCabang: string;
   namaCabang: string;
   login: (user: SecurityUser, token?: string, profile?: DarkoPosProfile) => void;
   logout: () => void;
-  setTunnelBaseUrl: (url: string) => void;
   setBranch: (kodeCabang: string, namaCabang: string) => void;
   refreshBranch: () => Promise<void>;
 }
-
-const DEFAULT_TUNNEL_URL = import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004';
 
 export const useSecurityStore = create<SecurityStore>()(
   persist(
@@ -27,10 +23,6 @@ export const useSecurityStore = create<SecurityStore>()(
       idToken: null,
       profile: null,
       isAuthenticated: false,
-      tunnelBaseUrl: (() => {
-        const stored = localStorage.getItem('DARKOPOS_TUNNEL_URL')?.trim();
-        return stored && !stored.includes('trycloudflare') ? stored : DEFAULT_TUNNEL_URL;
-      })(),
       kodeCabang: '011',
       namaCabang: 'CELENTANG',
       login: (user, token, profile) => {
@@ -81,9 +73,9 @@ export const useSecurityStore = create<SecurityStore>()(
         }));
       },
       logout: () => {
-        const { idToken, profile, tunnelBaseUrl } = get();
+        const { idToken, profile } = get();
         if (idToken) {
-          securityApi.logoutDarkoPos(idToken, profile?.sessionid, tunnelBaseUrl);
+          securityApi.logoutDarkoPos(idToken, profile?.sessionid);
         }
         set({
           user: null,
@@ -91,11 +83,6 @@ export const useSecurityStore = create<SecurityStore>()(
           profile: null,
           isAuthenticated: false,
         });
-      },
-      setTunnelBaseUrl: (url: string) => {
-        const clean = url.trim() || DEFAULT_TUNNEL_URL;
-        localStorage.setItem('DARKOPOS_TUNNEL_URL', clean);
-        set({ tunnelBaseUrl: clean });
       },
     }),
     {
@@ -105,7 +92,6 @@ export const useSecurityStore = create<SecurityStore>()(
         ...persistedState,
         kodeCabang: persistedState?.kodeCabang || currentState.kodeCabang || '011',
         namaCabang: persistedState?.namaCabang || currentState.namaCabang || 'CELENTANG',
-        tunnelBaseUrl: persistedState?.tunnelBaseUrl?.trim() || DEFAULT_TUNNEL_URL,
       }),
     }
   )
