@@ -1,7 +1,7 @@
 services:
   security-dev:
-    container_name: security-gerbang-dev
-    image: awandadarkotech/security-gerbang:dev
+    container_name: security-mastertruck-dev
+    image: awandadarkotech/security-mastertruck:dev
     build:
       context: .
       dockerfile: Dockerfile.dev
