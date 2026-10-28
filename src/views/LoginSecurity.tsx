@@ -34,7 +34,7 @@ export const LoginSecurity: React.FC = () => {
     setErrorMsg(null);
 
     try {
-      // 1. Panggil API DarkoPOS ke fixed URL http://52.77.133.95:9004/api/v1/users/login
+      // Panggil API DarkoPOS ke fixed URL http://52.77.133.95:9004/api/v1/users/login
       let res;
       try {
         res = await securityApi.loginDarkoPos({
@@ -44,7 +44,6 @@ export const LoginSecurity: React.FC = () => {
         });
       } catch (eComp: any) {
         if (eComp.response?.status === 401) {
-          // Coba fallback tanpa company jika server DarkoPOS dev memakai empty company
           try {
             res = await securityApi.loginDarkoPos({
               userid: cleanId,
@@ -79,31 +78,7 @@ export const LoginSecurity: React.FC = () => {
         return;
       }
     } catch (err: any) {
-      console.warn('DarkoPOS Login error / fallback mode:', err);
-
-      // Fallback development mode:
-      if (
-        (cleanId === 'adminPOS' || cleanId === 'security' || cleanId.toLowerCase() === 'security@kim3.co.id' || cleanId.startsWith('sec')) &&
-        (password === 'security123' || password === 'adminPOS' || password.length >= 6)
-      ) {
-        login({
-          id: cleanId,
-          nama: cleanId === 'adminPOS' ? 'POS - Administrator' : 'Pos Security KIM 3',
-          role: 'SECURITY',
-          userid: cleanId,
-          company: 'BENGKEL MASTER TRUK',
-          id_token: 'mock-jwt-token-testing-darkopos',
-          profile: {
-            userid: cleanId,
-            username: cleanId === 'adminPOS' ? 'POS - Administrator' : 'Pos Security KIM 3',
-            usercompany: 'BENGKEL MASTER TRUK',
-            role: 'SECURITY',
-            store: 1,
-            istotp: false,
-          },
-        });
-        return;
-      }
+      console.warn('DarkoPOS Login error:', err);
 
       const status = err.response?.status;
       if (status === 401) {
@@ -183,7 +158,7 @@ export const LoginSecurity: React.FC = () => {
                   autoComplete="username"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
-                  placeholder="Contoh: adminPOS"
+                  placeholder="Contoh: security01"
                   className={`${FIELD} pl-11`}
                 />
               </div>
