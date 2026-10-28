@@ -1,47 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Lock,
   User,
   AlertCircle,
-  CheckCircle2,
   Eye,
   EyeOff,
   ArrowRight,
   ShieldCheck,
-  Settings,
-  Globe,
 } from 'lucide-react';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { securityApi } from '../api/client';
 import { ThemeToggle } from '../components/layout/ThemeToggle';
-import { CARD, FIELD, LABEL, BTN_PRIMARY, ERROR_BANNER, SUCCESS_BANNER } from '../styles/ui';
+import { CARD, FIELD, LABEL, BTN_PRIMARY, ERROR_BANNER } from '../styles/ui';
 
 export const LoginSecurity: React.FC = () => {
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Tunnel Config state (ngrok / Cloudflare Tunnel)
-  const { tunnelBaseUrl, setTunnelBaseUrl, login } = useSecurityStore();
-  const effectiveBaseUrl = tunnelBaseUrl?.trim() || import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com';
-  const [showConfig, setShowConfig] = useState(false);
-  const [inputUrl, setInputUrl] = useState(effectiveBaseUrl);
-
-  // Sinkronkan inputUrl jika effectiveBaseUrl berubah
-  useEffect(() => {
-    setInputUrl(effectiveBaseUrl);
-  }, [effectiveBaseUrl]);
-
-  const handleSaveTunnelUrl = (e: React.FormEvent) => {
-    e.preventDefault();
-    setTunnelBaseUrl(inputUrl);
-    setShowConfig(false);
-    setInfoMsg('Base URL endpoint tim berhasil diperbarui!');
-    setTimeout(() => setInfoMsg(null), 3000);
-  };
+  const { login } = useSecurityStore();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,64 +32,52 @@ export const LoginSecurity: React.FC = () => {
 
     setIsLoading(true);
     setErrorMsg(null);
-    setInfoMsg(null);
 
     try {
-      // 1. Panggil API DarkoPOS dengan URL tunnel default/aktif
-      if (effectiveBaseUrl) {
-        let res;
-        try {
-          res = await securityApi.loginDarkoPos(
-            {
+      // 1. Panggil API DarkoPOS ke fixed URL http://52.77.133.95:9004/api/v1/users/login
+      let res;
+      try {
+        res = await securityApi.loginDarkoPos({
+          userid: cleanId,
+          password: password,
+          company: 'BENGKEL MASTER TRUK',
+        });
+      } catch (eComp: any) {
+        if (eComp.response?.status === 401) {
+          // Coba fallback tanpa company jika server DarkoPOS dev memakai empty company
+          try {
+            res = await securityApi.loginDarkoPos({
               userid: cleanId,
               password: password,
-              company: 'BENGKEL MASTER TRUK',
-            },
-            effectiveBaseUrl
-          );
-        } catch (eComp: any) {
-          if (eComp.response?.status === 401) {
-            // Coba fallback tanpa company jika server DarkoPOS dev memakai empty company
-            try {
-              res = await securityApi.loginDarkoPos(
-                {
-                  userid: cleanId,
-                  password: password,
-                  company: '',
-                },
-                effectiveBaseUrl
-              );
-            } catch {
-              throw eComp;
-            }
-          } else {
+              company: '',
+            });
+          } catch {
             throw eComp;
           }
-        }
-
-        if (res && res.success && res.profile) {
-          login(
-            {
-              id: res.profile.userid || 'sec_' + Date.now(),
-              nama: res.profile.username || res.profile.userid,
-              role: res.profile.role || 'SECURITY',
-              userid: res.profile.userid,
-              company: res.profile.usercompany,
-              id_token: res.id_token,
-              profile: res.profile,
-            },
-            res.id_token,
-            res.profile
-          );
-          return;
         } else {
-          setErrorMsg(res?.message || 'User ID atau kata sandi tidak sesuai. Silakan periksa kembali dan coba lagi.');
-          return;
+          throw eComp;
         }
       }
 
-      // 2. Jika BASE URL belum diset, lempar ke fallback
-      throw new Error('BASE_URL_NOT_SET');
+      if (res && res.success && res.profile) {
+        login(
+          {
+            id: res.profile.userid || 'sec_' + Date.now(),
+            nama: res.profile.username || res.profile.userid,
+            role: res.profile.role || 'SECURITY',
+            userid: res.profile.userid,
+            company: res.profile.usercompany,
+            id_token: res.id_token,
+            profile: res.profile,
+          },
+          res.id_token,
+          res.profile
+        );
+        return;
+      } else {
+        setErrorMsg(res?.message || 'User ID atau kata sandi tidak sesuai. Silakan periksa kembali dan coba lagi.');
+        return;
+      }
     } catch (err: any) {
       console.warn('DarkoPOS Login error / fallback mode:', err);
 
@@ -149,10 +116,8 @@ export const LoginSecurity: React.FC = () => {
         setErrorMsg('Terjadi kendala pada server sistem POS. Silakan coba kembali beberapa saat lagi.');
       } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
         setErrorMsg('Waktu koneksi ke server POS habis. Pastikan jaringan internet stabil dan coba kembali.');
-      } else if (err.code === 'ERR_NETWORK' || (!err.response && err.message !== 'BASE_URL_NOT_SET')) {
-        setErrorMsg('Tidak dapat terhubung ke server autentikasi POS. Pastikan koneksi internet stabil atau hubungi tim sistem.');
-      } else if (err.message === 'BASE_URL_NOT_SET') {
-        setErrorMsg('Koneksi ke server POS belum terkonfigurasi. Silakan periksa menu Set URL atau hubungi administrator.');
+      } else if (err.code === 'ERR_NETWORK') {
+        setErrorMsg('Tidak dapat terhubung ke server autentikasi POS (52.77.133.95:9004). Pastikan koneksi internet stabil atau hubungi tim sistem.');
       } else {
         setErrorMsg('Gagal masuk ke sistem. Silakan periksa kembali data akun Anda atau coba beberapa saat lagi.');
       }
@@ -186,53 +151,7 @@ export const LoginSecurity: React.FC = () => {
               <ShieldCheck className="h-4 w-4" />
               <span>Portal Keamanan Gerbang</span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowConfig(!showConfig)}
-              className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-ink-muted transition hover:text-accent"
-              title="Atur Base URL Tunnel Ngrok / Cloudflare"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              <span>{showConfig ? 'Tutup URL' : 'Set URL'}</span>
-            </button>
           </div>
-
-          {/* Form Setup Base URL Tunnel (bisa dibuka-tutup) */}
-          {showConfig && (
-            <form
-              onSubmit={handleSaveTunnelUrl}
-              className="mb-5 space-y-2.5 rounded-xl border border-border bg-surface-sunken p-4"
-            >
-              <div className="flex items-center gap-1.5 text-xs font-bold text-ink">
-                <Globe className="h-4 w-4 text-accent" />
-                <span>Base URL DarkoPOS (Ngrok / Tunnel)</span>
-              </div>
-              <p className="text-[11px] text-ink-muted">Masukkan URL tunnel dari laptop lokal tim POS:</p>
-              <input
-                type="url"
-                value={inputUrl}
-                onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="https://xxxx.ngrok-free.app"
-                className="w-full rounded-lg border border-border-strong bg-surface-raised px-3 py-2.5 text-base text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
-              />
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowConfig(false)}
-                  className="cursor-pointer rounded-lg px-3 py-1.5 text-xs text-ink-muted transition hover:text-ink"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="cursor-pointer rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-on transition hover:bg-accent-hover"
-                >
-                  Simpan URL
-                </button>
-              </div>
-            </form>
-          )}
 
           <div className="mb-5">
             <h2 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">Masuk Pos Gerbang</h2>
@@ -240,13 +159,6 @@ export const LoginSecurity: React.FC = () => {
               Autentikasi staf security untuk verifikasi unit kendaraan KIM 3.
             </p>
           </div>
-
-          {infoMsg && (
-            <div className={`${SUCCESS_BANNER} mb-4`}>
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{infoMsg}</span>
-            </div>
-          )}
 
           {errorMsg && (
             <div className={`${ERROR_BANNER} mb-4`}>

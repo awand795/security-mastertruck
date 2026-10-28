@@ -18,7 +18,7 @@ interface SecurityStore {
   refreshBranch: () => Promise<void>;
 }
 
-const DEFAULT_TUNNEL_URL = import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://staff-anyway-offering-epic.trycloudflare.com';
+const DEFAULT_TUNNEL_URL = import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004';
 
 export const useSecurityStore = create<SecurityStore>()(
   persist(
@@ -27,7 +27,10 @@ export const useSecurityStore = create<SecurityStore>()(
       idToken: null,
       profile: null,
       isAuthenticated: false,
-      tunnelBaseUrl: localStorage.getItem('DARKOPOS_TUNNEL_URL')?.trim() || DEFAULT_TUNNEL_URL,
+      tunnelBaseUrl: (() => {
+        const stored = localStorage.getItem('DARKOPOS_TUNNEL_URL')?.trim();
+        return stored && !stored.includes('trycloudflare') ? stored : DEFAULT_TUNNEL_URL;
+      })(),
       kodeCabang: '011',
       namaCabang: 'CELENTANG',
       login: (user, token, profile) => {
