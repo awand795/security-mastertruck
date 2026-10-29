@@ -131,7 +131,7 @@ export const LoginSecurity: React.FC = () => {
           <div className="mb-5">
             <h2 className="text-xl font-bold tracking-tight text-ink sm:text-2xl">Masuk Pos Gerbang</h2>
             <p className="mt-1 text-sm font-medium text-ink-muted">
-              Autentikasi staf security untuk verifikasi unit kendaraan KIM 3.
+              Masuk dengan User ID petugas Master Truck.
             </p>
           </div>
 
@@ -201,7 +201,7 @@ export const LoginSecurity: React.FC = () => {
 
           <div className="mt-5 border-t border-border pt-4 text-center">
             <span className="text-[11px] text-ink-muted">
-              Akses internal gerbang bengkel KIM 3 • Terhubung ke DarkoPOS
+              Akses internal gerbang bengkel Master Truck • Terhubung ke DarkoPOS
             </span>
           </div>
         </div>
