@@ -194,14 +194,14 @@ export const LoginSecurity: React.FC = () => {
             </div>
 
             <button type="submit" disabled={isLoading} className={`${BTN_PRIMARY} mt-1 py-4`}>
-              <span>{isLoading ? 'Memverifikasi ke DarkoPOS...' : 'Masuk Sekarang'}</span>
+              <span>{isLoading ? 'Memverifikasi...' : 'Masuk Sekarang'}</span>
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
 
           <div className="mt-5 border-t border-border pt-4 text-center">
             <span className="text-[11px] text-ink-muted">
-              Akses internal gerbang bengkel Master Truck • Terhubung ke DarkoPOS
+              Akses internal gerbang bengkel Master Truck
             </span>
           </div>
         </div>
