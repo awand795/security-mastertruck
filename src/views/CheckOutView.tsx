@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   LogOut,
@@ -19,7 +20,6 @@ import {
 import { securityApi } from '../api/client';
 import { ActiveInsideVehicle } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
-import { MemoKeluarPrintModal } from '../components/security/MemoKeluarPrintModal';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { formatPlate, normalizePlate } from '../utils/plate';
 import { broadcastRealtimeEvent } from '../utils/realtime';
@@ -58,7 +58,12 @@ const formatDuration = (waktuMasuk: string) => {
   return `${minutes} menit`;
 };
 
-export const CheckOutView: React.FC = () => {
+interface CheckOutViewProps {
+  initialPlate?: string;
+  onClearInitialPlate?: () => void;
+}
+
+export const CheckOutView: React.FC<CheckOutViewProps> = ({ initialPlate, onClearInitialPlate }) => {
   const queryClient = useQueryClient();
   const currentUser = useSecurityStore((state) => state.user);
   const kodeCabang = useSecurityStore((state) => state.kodeCabang);
@@ -68,6 +73,13 @@ export const CheckOutView: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<ActiveInsideVehicle | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // Auto-select when initialPlate is passed from ActiveInsideView
+  useEffect(() => {
+    if (initialPlate) {
+      setPlateInput(initialPlate);
+    }
+  }, [initialPlate]);
+
   // Exit details
   const [catatanKeluar, setCatatanKeluar] = useState('');
   const [photos, setPhotos] = useState<PhotoSlot[]>(INITIAL_PHOTOS);
@@ -75,7 +87,6 @@ export const CheckOutView: React.FC = () => {
   // Status & Success state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [successMemo, setSuccessMemo] = useState<any | null>(null);
 
   const normalizedPlate = normalizePlate(plateInput);
@@ -89,6 +100,17 @@ export const CheckOutView: React.FC = () => {
     queryFn: () => securityApi.getActiveInside(normalizedPlate, kodeCabang),
     refetchInterval: 4000, // Auto-polling 4 detik agar sinkron saat ada armada baru masuk/keluar
   });
+
+  useEffect(() => {
+    if (initialPlate && activeVehicles.length > 0) {
+      const cleanTarget = normalizePlate(initialPlate);
+      const found = activeVehicles.find((v) => normalizePlate(v.no_polisi) === cleanTarget);
+      if (found) {
+        setSelectedVehicle(found);
+        if (onClearInitialPlate) onClearInitialPlate();
+      }
+    }
+  }, [initialPlate, activeVehicles, onClearInitialPlate]);
 
   // Tutup popup saran saat klik di luar kotak pencarian
   useEffect(() => {
@@ -268,8 +290,6 @@ export const CheckOutView: React.FC = () => {
 
       queryClient.invalidateQueries({ queryKey: ['active-inside'] });
       queryClient.invalidateQueries({ queryKey: ['memo-keluar'] });
-
-      setIsPrintModalOpen(true);
     } catch (err: any) {
       console.error('Check out error:', err);
       setErrorMsg(err.response?.data?.message || 'Gagal memproses check out.');
@@ -279,7 +299,6 @@ export const CheckOutView: React.FC = () => {
   };
 
   const handleReset = () => {
-    setIsPrintModalOpen(false);
     setSuccessMemo(null);
     setSelectedVehicle(null);
     setPlateInput('');
@@ -288,112 +307,6 @@ export const CheckOutView: React.FC = () => {
   };
 
   const duration = selectedVehicle ? formatDuration(selectedVehicle.waktu_masuk) : null;
-
-  if (successMemo) {
-    return (
-      <div className="mx-auto max-w-md py-2">
-        <div className="rounded-2xl border border-border bg-surface-raised p-6 text-center shadow-card">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-status-green-bg text-status-green">
-            <FileCheck className="h-7 w-7" />
-          </div>
-          <h2 className="text-lg font-bold text-ink">Kendaraan Keluar</h2>
-          <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-            Memo keluar sudah diterbitkan. Kendaraan boleh meninggalkan bengkel.
-          </p>
-
-          <div className="mt-4 rounded-xl border border-border bg-surface-sunken px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-              Nomor Polisi
-            </p>
-            <p className="font-mono text-2xl font-bold tracking-[0.12em] text-ink">
-              {formatPlate(successMemo.no_polisi)}
-            </p>
-          </div>
-
-          <dl className="mt-3 space-y-2.5 rounded-xl border border-border p-4 text-left text-xs">
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Hash className="h-3.5 w-3.5" /> No. Memo Keluar
-              </dt>
-              <dd className="font-mono font-bold text-status-green">{successMemo.nomor_memo}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <FileCheck className="h-3.5 w-3.5" /> No. Tiket Masuk
-              </dt>
-              <dd className="font-mono text-ink-muted">{successMemo.nomor_tiket}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <User className="h-3.5 w-3.5" /> PIC / Tujuan
-              </dt>
-              <dd className="max-w-[60%] truncate font-semibold text-ink">
-                {successMemo.pic_tujuan}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Truck className="h-3.5 w-3.5" /> Pengemudi
-              </dt>
-              <dd className="max-w-[60%] truncate font-semibold text-ink">
-                {successMemo.nama_pengemudi}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Clock className="h-3.5 w-3.5" /> Check In
-              </dt>
-              <dd className="font-semibold text-ink">{successMemo.waktu_masuk}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <LogOut className="h-3.5 w-3.5" /> Check Out
-              </dt>
-              <dd className="font-bold text-status-green">{successMemo.waktu_keluar}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Timer className="h-3.5 w-3.5" /> Durasi
-              </dt>
-              <dd className="font-semibold text-ink">{successMemo.durasi}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <BadgeCheck className="h-3.5 w-3.5" /> Oleh
-              </dt>
-              <dd className="max-w-[60%] truncate font-semibold text-ink">
-                {successMemo.petugas_keluar}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              onClick={handleReset}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-status-green-fill px-4 py-3.5 text-sm font-bold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-green/50 active:scale-[0.99]"
-            >
-              <LogOut className="h-4 w-4" />
-              Check Out Berikutnya
-            </button>
-            <button
-              onClick={() => setIsPrintModalOpen(true)}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface-raised px-4 py-3 text-xs font-bold text-ink transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-[0.99]"
-            >
-              <Printer className="h-4 w-4 text-status-green" />
-              Cetak Gate Pass (Memo Keluar)
-            </button>
-          </div>
-
-          <MemoKeluarPrintModal
-            memo={successMemo}
-            isOpen={isPrintModalOpen}
-            onClose={() => setIsPrintModalOpen(false)}
-            onNext={handleReset}
-          />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 md:max-w-4xl">
@@ -658,6 +571,53 @@ export const CheckOutView: React.FC = () => {
           </button>
         </PageAction>
       </form>
+          {/* Modal Pop-up Sukses Check Out Ringkas */}
+      {successMemo &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-border bg-surface-raised p-6 text-center shadow-2xl animate-scale-in">
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-40 h-40 bg-status-green/15 rounded-full blur-2xl pointer-events-none" />
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-status-green-bg text-status-green shadow-sm ring-4 ring-status-green/20">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+              <h2 className="text-xl font-black tracking-tight text-ink">Check Out Berhasil!</h2>
+              <p className="mt-1 text-xs text-ink-muted">
+                Kendaraan resmi keluar dan gate pass telah tercatat.
+              </p>
+              <div className="my-4 rounded-2xl border border-border bg-surface-sunken p-3 text-center shadow-inner">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                  Nomor Polisi
+                </p>
+                <p className="font-mono text-2xl font-black tracking-widest text-ink">
+                  {formatPlate(successMemo.no_polisi)}
+                </p>
+              </div>
+              <dl className="mb-5 space-y-2 rounded-xl border border-border/80 bg-surface-base p-3 text-left text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-muted flex items-center gap-1.5"><Truck className="h-3.5 w-3.5" /> Pengemudi</dt>
+                  <dd className="font-semibold text-ink truncate max-w-[55%]">{successMemo.nama_pengemudi || '-'}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-muted flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Jam Keluar</dt>
+                  <dd className="font-mono font-bold text-status-green">{successMemo.waktu_keluar}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-muted flex items-center gap-1.5"><Timer className="h-3.5 w-3.5" /> Total Durasi</dt>
+                  <dd className="font-semibold text-ink">{successMemo.durasi || '-'}</dd>
+                </div>
+              </dl>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-status-green-fill px-5 py-3.5 text-sm font-bold text-white shadow-lg shadow-status-green/25 hover:brightness-110 active:scale-[0.98] transition cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+                Check Out Berikutnya
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

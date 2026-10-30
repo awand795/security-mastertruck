@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogIn, LogOut, FileText, ShieldCheck } from 'lucide-react';
+import { LogIn, LogOut, Truck, CalendarCheck, ShieldCheck } from 'lucide-react';
 import { SecurityTab } from './MobileBottomNav';
 import { ThemeSegmented } from './ThemeToggle';
 import { useSecurityStore } from '../../store/useSecurityStore';
@@ -25,7 +25,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onChangeTab }) => {
   const navigationItems: NavItem[] = [
     { id: 'check-in', label: 'Check In', icon: LogIn },
     { id: 'check-out', label: 'Check Out', icon: LogOut },
-    { id: 'memo-keluar', label: 'Memo Keluar', icon: FileText },
+    { id: 'active-inside', label: 'Kendaraan di Dalam', icon: Truck },
+    { id: 'today-exit', label: 'Keluar Hari Ini', icon: CalendarCheck },
   ];
 
   return (

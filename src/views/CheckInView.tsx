@@ -27,7 +27,7 @@ import { CheckinCandidate, EmployeeItem } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
 import { PlateOcrScannerModal } from '../components/security/PlateOcrScannerModal';
 import { SelectMenu, SelectMenuOption } from '../components/common/SelectMenu';
-import { CheckinTicketModal, SuccessTicketData } from '../components/security/CheckinTicketModal';
+import { type SuccessTicketData } from '../components/security/CheckinTicketModal';
 import { useSecurityStore } from '../store/useSecurityStore';
 import { formatPlate, normalizePlate } from '../utils/plate';
 import { broadcastRealtimeEvent } from '../utils/realtime';
@@ -119,7 +119,6 @@ export const CheckInView: React.FC = () => {
   // UI status
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successTicket, setSuccessTicket] = useState<SuccessTicketData | null>(null);
-  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [unconfirmedModalCandidate, setUnconfirmedModalCandidate] = useState<CheckinCandidate | null>(null);
 
@@ -494,8 +493,6 @@ export const CheckInView: React.FC = () => {
 
       queryClient.invalidateQueries({ queryKey: ['active-inside'] });
       queryClient.invalidateQueries({ queryKey: ['memo-keluar'] });
-
-      setIsTicketModalOpen(true);
     } catch (err: any) {
       console.error('Check in error:', err);
       setErrorMsg(err.response?.data?.message || 'Gagal menyimpan check-in. Periksa jaringan pos gerbang.');
@@ -521,129 +518,6 @@ export const CheckInView: React.FC = () => {
     setHasSearched(false);
     setPhotos(INITIAL_PHOTOS);
   };
-
-  if (successTicket) {
-    return (
-      <div className="mx-auto max-w-md py-2">
-        <div className="rounded-2xl border border-border bg-surface-raised p-6 text-center shadow-card">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-status-green-bg text-status-green">
-            <CheckCircle2 className="h-7 w-7" />
-          </div>
-          <h2 className="text-lg font-bold text-ink">Check In Berhasil</h2>
-          <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-            Kendaraan tercatat masuk di pos gerbang.
-          </p>
-
-          <div className="mt-4 rounded-xl border border-border bg-surface-sunken px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
-              Nomor Polisi
-            </p>
-            <p className="font-mono text-2xl font-bold tracking-[0.12em] text-ink">
-              {formatPlate(successTicket.no_polisi)}
-            </p>
-          </div>
-
-          <dl className="mt-3 space-y-2.5 rounded-xl border border-border p-4 text-left text-xs">
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Hash className="h-3.5 w-3.5" /> No. Tiket
-              </dt>
-              <dd className="font-mono font-bold text-accent">{successTicket.nomor_tiket}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Truck className="h-3.5 w-3.5" /> Klasifikasi
-              </dt>
-              <dd className="font-bold text-ink">
-                {successTicket.jenis === 'BOOKING'
-                  ? 'Booking Service'
-                  : successTicket.jenis === 'WALK_IN_MEMBER'
-                  ? 'Walk-In Member Terdaftar'
-                  : 'Walk-In Umum'}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <User className="h-3.5 w-3.5" /> PIC / Tujuan
-              </dt>
-              <dd className="max-w-[60%] truncate font-semibold text-ink">
-                {successTicket.pic}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Truck className="h-3.5 w-3.5" /> Nama Pengemudi
-              </dt>
-              <dd className="max-w-[60%] truncate font-semibold text-ink">
-                {successTicket.nama_driver}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Truck className="h-3.5 w-3.5" /> Tujuan
-              </dt>
-              <dd className="font-bold text-accent">{successTicket.tujuan}</dd>
-            </div>
-            <div className="flex items-start justify-between gap-3">
-              <dt className="flex shrink-0 items-center gap-1.5 text-ink-muted">
-                <Info className="h-3.5 w-3.5" /> Keperluan
-              </dt>
-              <dd className="max-w-[60%] text-right font-semibold text-ink">
-                {successTicket.keperluan}
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Phone className="h-3.5 w-3.5" /> Kontak PIC
-              </dt>
-              <dd className="font-semibold text-ink">{successTicket.kontak}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <Clock className="h-3.5 w-3.5" /> Waktu Check In
-              </dt>
-              <dd className="font-bold text-status-green">{successTicket.waktu_masuk}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <dt className="flex items-center gap-1.5 text-ink-muted">
-                <BadgeCheck className="h-3.5 w-3.5" /> Oleh
-              </dt>
-              <dd className="max-w-[60%] truncate font-semibold text-ink">
-                {successTicket.oleh}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              onClick={() => setIsTicketModalOpen(true)}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 text-sm font-bold text-accent-on shadow-card transition hover:bg-accent-hover active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-            >
-              <Printer className="h-4 w-4" />
-              Buka & Cetak Karcis Tiket
-            </button>
-            <button
-              onClick={handleReset}
-              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border-strong bg-surface-raised px-4 py-3 text-xs font-bold text-ink transition hover:bg-surface-sunken active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-            >
-              <LogIn className="h-4 w-4 text-accent" />
-              Check In Berikutnya
-            </button>
-          </div>
-        </div>
-
-        <CheckinTicketModal
-          ticket={successTicket}
-          isOpen={isTicketModalOpen}
-          onClose={() => setIsTicketModalOpen(false)}
-          onNextCheckin={() => {
-            setIsTicketModalOpen(false);
-            handleReset();
-          }}
-        />
-      </div>
-    );
-  }
 
   const disabledReason = (() => {
     if (isSubmitting) return null;
@@ -1195,6 +1069,53 @@ export const CheckInView: React.FC = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>,
+          document.body
+        )}
+      {/* Modal Pop-up Sukses Check In Ringkas */}
+      {successTicket &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-border bg-surface-raised p-6 text-center shadow-2xl animate-scale-in">
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-40 h-40 bg-status-green/15 rounded-full blur-2xl pointer-events-none" />
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-status-green-bg text-status-green shadow-sm ring-4 ring-status-green/20">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+              <h2 className="text-xl font-black tracking-tight text-ink">Check In Berhasil!</h2>
+              <p className="mt-1 text-xs text-ink-muted">
+                Armada telah resmi tercatat masuk di pos gerbang.
+              </p>
+              <div className="my-4 rounded-2xl border border-border bg-surface-sunken p-3 text-center shadow-inner">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-ink-subtle">
+                  Nomor Polisi
+                </p>
+                <p className="font-mono text-2xl font-black tracking-widest text-ink">
+                  {formatPlate(successTicket.no_polisi)}
+                </p>
+              </div>
+              <dl className="mb-5 space-y-2 rounded-xl border border-border/80 bg-surface-base p-3 text-left text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-muted flex items-center gap-1.5"><Truck className="h-3.5 w-3.5" /> Pengemudi</dt>
+                  <dd className="font-semibold text-ink truncate max-w-[55%]">{successTicket.nama_driver || '-'}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-muted flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Jam Masuk</dt>
+                  <dd className="font-mono font-bold text-status-green">{successTicket.waktu_masuk}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-ink-muted flex items-center gap-1.5"><Info className="h-3.5 w-3.5" /> Keperluan</dt>
+                  <dd className="font-semibold text-accent truncate max-w-[55%]">{successTicket.tujuan}</dd>
+                </div>
+              </dl>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3.5 text-sm font-bold text-accent-on shadow-lg shadow-accent/25 hover:bg-accent-hover active:scale-[0.98] transition cursor-pointer"
+              >
+                <LogIn className="h-4 w-4" />
+                Check In Berikutnya
+              </button>
             </div>
           </div>,
           document.body

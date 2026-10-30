@@ -21,10 +21,15 @@ const TAB_TITLES: Record<SecurityTab, { title: string; subtitle: string; crumb: 
     subtitle: 'Validasi Fisik & Check Out',
     crumb: 'Check Out',
   },
-  'memo-keluar': {
-    title: 'Memo Keluar & Gate Pass',
-    subtitle: 'Arsip & Cetak Tiket Keluar',
-    crumb: 'Memo Keluar',
+  'active-inside': {
+    title: 'Kendaraan di Dalam Bengkel',
+    subtitle: 'Live Monitoring Armada Aktif',
+    crumb: 'Kendaraan di Dalam',
+  },
+  'today-exit': {
+    title: 'Kendaraan Keluar Hari Ini',
+    subtitle: 'Riwayat Armada Keluar Hari Ini',
+    crumb: 'Keluar Hari Ini',
   },
 };
 
