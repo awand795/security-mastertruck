@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import ort from 'onnxruntime-node';
+import ort from 'onnxruntime-web';
 import jpeg from 'jpeg-js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -114,10 +114,10 @@ let recSession = null;
 
 async function initModels() {
   const t0 = Date.now();
-  console.log('[ANPR Server] Loading YOLOv8n-Plate & SVTR26-Tiny into C++ ONNX Runtime...');
+  console.log('[ANPR Server] Loading YOLOv8n-Plate & SVTR26-Tiny into Server ONNX Runtime...');
   [detSession, recSession] = await Promise.all([
-    ort.InferenceSession.create(DET_MODEL_PATH),
-    ort.InferenceSession.create(REC_MODEL_PATH),
+    ort.InferenceSession.create(DET_MODEL_PATH, { executionProviders: ['wasm'] }),
+    ort.InferenceSession.create(REC_MODEL_PATH, { executionProviders: ['wasm'] }),
   ]);
 
   // Warmup 1x agar request pertama dari kamera langsung cepat (<80ms)
