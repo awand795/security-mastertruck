@@ -12,13 +12,106 @@ import {
   Keyboard,
   RotateCcw,
 } from 'lucide-react';
-import { createWorker, Worker, PSM } from 'tesseract.js';
+import * as ort from 'onnxruntime-web/wasm';
+
+// Konfigurasi lokasi file WebAssembly ONNX Runtime di folder public/models/
+ort.env.wasm.wasmPaths = '/models/';
+ort.env.wasm.numThreads = 1;
 
 interface PlateOcrScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDetected: (plate: string) => void;
 }
+
+interface DetectedBoxNormalized {
+  leftPct: number;
+  topPct: number;
+  widthPct: number;
+  heightPct: number;
+  conf: number;
+}
+
+// Cache session ONNX di memori + Persistent Browser CacheStorage agar buka pertama maupun berikutnya instan!
+let cachedDetSession: ort.InferenceSession | null = null;
+let cachedRecSession: ort.InferenceSession | null = null;
+let sessionLoadPromise: Promise<{
+  det: ort.InferenceSession;
+  rec: ort.InferenceSession;
+}> | null = null;
+
+const MODEL_CACHE_NAME = 'kim3-anpr-models-v1';
+
+const fetchCachedModelBuffer = async (url: string): Promise<Uint8Array> => {
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    try {
+      const cache = await window.caches.open(MODEL_CACHE_NAME);
+      let response = await cache.match(url);
+      if (!response) {
+        response = await fetch(url, { cache: 'force-cache' });
+        if (response.ok) {
+          await cache.put(url, response.clone());
+        }
+      }
+      if (response && response.ok) {
+        const buf = await response.arrayBuffer();
+        return new Uint8Array(buf);
+      }
+    } catch {
+      /* fallback ke fetch biasa */
+    }
+  }
+  const fallbackRes = await fetch(url, { cache: 'force-cache' });
+  const buf = await fallbackRes.arrayBuffer();
+  return new Uint8Array(buf);
+};
+
+export const ensureAnprSessions = async () => {
+  if (cachedDetSession && cachedRecSession) {
+    return { det: cachedDetSession, rec: cachedRecSession };
+  }
+  if (!sessionLoadPromise) {
+    sessionLoadPromise = (async () => {
+      const [detBuf, recBuf] = await Promise.all([
+        fetchCachedModelBuffer('/models/plate_det_yolov8n.onnx'),
+        fetchCachedModelBuffer('/models/plate_rec_svtr.onnx'),
+      ]);
+      const [det, rec] = await Promise.all([
+        ort.InferenceSession.create(detBuf, {
+          executionProviders: ['wasm'],
+        }),
+        ort.InferenceSession.create(recBuf, {
+          executionProviders: ['wasm'],
+        }),
+      ]);
+      cachedDetSession = det;
+      cachedRecSession = rec;
+      return { det, rec };
+    })().catch((err) => {
+      sessionLoadPromise = null;
+      throw err;
+    });
+  }
+  return sessionLoadPromise;
+};
+
+// Preload otomatis di background begitu halaman Pos Security dibuka (sebelum tombol kamera diklik)
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    ensureAnprSessions().catch(() => {});
+  }, 300);
+}
+
+/**
+ * Kamus karakter model SVTR26-Tiny (CTC index 0 = blank, 1..37 = 0-9 & A-Z)
+ */
+const SVTR_CHARS = [
+  'blank',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+  'A', 'B', 'C', 'D', 'D', 'E', 'F', 'G', 'H', 'I',
+  'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+  'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+];
 
 /**
  * Daftar kode wilayah plat nomor resmi di Indonesia (Sumatera, Jawa, Kalimantan, Sulawesi, dll.)
@@ -38,130 +131,53 @@ const VALID_INDONESIAN_REGIONS = new Set([
 ]);
 
 /**
- * Normalisasi karakter angka di blok tengah plat nomor:
- * HANYA mengizinkan konversi karakter yang benar-benar mirip angka (0/O/D/Q, 1/I, 8/B)
- * dan WAJIB mengandung minimal 1 digit angka asli agar huruf murni seperti "ETE" TIDAK PERNAH berubah jadi "E 7 E".
- */
-const normalizeMiddleDigits = (rawDigits: string): string | null => {
-  if (!/[0-9]/.test(rawDigits)) return null;
-
-  const cleaned = rawDigits
-    .replace(/[ODQ]/g, '0')
-    .replace(/[IL]/g, '1')
-    .replace(/B/g, '8');
-
-  if (!/^[1-9][0-9]{0,3}$/.test(cleaned)) {
-    return null;
-  }
-  return cleaned;
-};
-
-/**
- * Normalisasi karakter huruf di blok wilayah/seri belakang.
- */
-const normalizePlateLetters = (rawLetters: string): string => {
-  return rawLetters
-    .replace(/0/g, 'O')
-    .replace(/8/g, 'B');
-};
-
-/**
- * Validasi dan bersihkan kode wilayah (mengabaikan gangguan baut di pinggir kiri misal "1BK" -> "BK").
- */
-const resolveRegionCode = (rawPrefix: string): string | null => {
-  const norm = normalizePlateLetters(rawPrefix).replace(/1/g, 'I');
-  if (VALID_INDONESIAN_REGIONS.has(norm)) return norm;
-
-  if (norm.length === 3) {
-    const lastTwo = norm.slice(-2);
-    if (VALID_INDONESIAN_REGIONS.has(lastTwo)) return lastTwo;
-    const firstTwo = norm.slice(0, 2);
-    if (VALID_INDONESIAN_REGIONS.has(firstTwo)) return firstTwo;
-  }
-  return null;
-};
-
-/**
- * Validasi kelayakan struktur plat nomor Indonesia hasil ANPR:
- * - Format: [1-2 Huruf Wilayah Resmi] [1-4 Angka] [1-3 Huruf Seri]
- * - Total panjang karakter bersih (tanpa spasi) minimal 5 karakter (contoh: BK 8210 GI = 8 karakter, B 1234 WLG = 8 karakter)
- *   sehingga noise bayangan pendek seperti "E 7 E" (3 karakter) otomatis ditolak 100%.
- */
-const validateCandidatePlate = (
-  rawWilayah: string,
-  rawNomor: string,
-  rawSeri: string
-): string | null => {
-  const wilayah = resolveRegionCode(rawWilayah);
-  if (!wilayah) return null;
-
-  const nomor = normalizeMiddleDigits(rawNomor);
-  if (!nomor) return null;
-
-  const seri = normalizePlateLetters(rawSeri).replace(/1/g, 'I');
-  if (!/^[A-Z]{1,3}$/.test(seri)) return null;
-
-  const totalCleanLen = wilayah.length + nomor.length + seri.length;
-  if (totalCleanLen < 5) return null;
-
-  if (wilayah.length === 1 && seri.length === 1 && nomor.length < 3) {
-    return null;
-  }
-
-  return `${wilayah} ${nomor} ${seri}`;
-};
-
-/**
- * Ekstraksi plat nomor polisi Indonesia dari teks mentah ANPR/OCR.
+ * Parser cerdas plat nomor Indonesia dari output CTC SVTR26-Tiny (contoh: "BI234WLG" -> "B 1234 WLG", "BK8210GI" -> "BK 8210 GI").
  */
 export const extractIndonesianPlate = (rawText: string): string | null => {
   if (!rawText) return null;
 
-  const lines = rawText
-    .toUpperCase()
-    .split(/[\r\n]+/)
-    .map((line) =>
-      line
-        .replace(/[^A-Z0-9\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    )
-    .filter(Boolean);
+  const clean = rawText.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (clean.length < 4 || clean.length > 10) return null;
 
-  const candidatesToCheck = [...lines, lines.join(' ')];
+  // Coba dengan berbagai offset awal (0 atau 1 jika ada noise baut di depan)
+  for (const startOffset of [0, 1]) {
+    const sub = clean.slice(startOffset);
+    if (sub.length < 4) continue;
 
-  for (const line of candidatesToCheck) {
-    // 1. Pola dengan spasi (misal "B 1234 WLG", "BK 8210 GI", "BK 8210GI")
-    const flexRegex = /(?:^|\s)([A-Z0-9]{1,3})\s+([0-9ODQILB]{1,4})\s*([A-Z0-9]{1,3})(?=\s|$)/g;
-    let match: RegExpExecArray | null;
-    while ((match = flexRegex.exec(line)) !== null) {
-      const valid = validateCandidatePlate(match[1], match[2], match[3]);
-      if (valid) return valid;
-    }
+    // Prioritaskan kode wilayah 2 huruf (BK, BB, BL, BM, dll.) lalu 1 huruf (B, D, F, L, dll.)
+    for (const prefixLen of [2, 1]) {
+      if (sub.length <= prefixLen + 1) continue;
+      const rawPrefix = sub.slice(0, prefixLen);
+      if (!VALID_INDONESIAN_REGIONS.has(rawPrefix)) continue;
 
-    // 2. Pola rapat atau terpecah antar token (misal "B1234WLG" atau "BK8210GI")
-    const compactTokens = line.split(/\s+/);
-    for (let i = 0; i < compactTokens.length; i++) {
-      const combos = [
-        compactTokens[i],
-        i + 1 < compactTokens.length ? `${compactTokens[i]}${compactTokens[i + 1]}` : '',
-        i + 2 < compactTokens.length
-          ? `${compactTokens[i]}${compactTokens[i + 1]}${compactTokens[i + 2]}`
-          : '',
-      ].filter((c) => c.length >= 5 && c.length <= 10);
+      const rest = sub.slice(prefixLen);
+      // Blok tengah: 1-4 angka (termasuk 'I'->'1', 'O'/'D'/'Q'->'0', 'B'->'8' jika menempel pada angka)
+      // Blok akhir: 1-3 huruf seri (termasuk '0'->'O', '1'->'I', '8'->'B')
+      const match = rest.match(/^([0-9OIBDQ]{1,4})([A-Z018]{1,3})/);
+      if (!match) continue;
 
-      for (const token of combos) {
-        for (const prefixLen of [2, 1, 3]) {
-          if (token.length <= prefixLen + 2) continue;
-          const rawPrefix = token.slice(0, prefixLen);
-          const rest = token.slice(prefixLen);
-          const restMatch = rest.match(/^([0-9ODQILB]{1,4})([A-Z0-9]{1,3})$/);
-          if (restMatch) {
-            const valid = validateCandidatePlate(rawPrefix, restMatch[1], restMatch[2]);
-            if (valid) return valid;
-          }
-        }
-      }
+      const rawDigits = match[1];
+      const rawSuffix = match[2];
+
+      const digits = rawDigits
+        .replace(/[ODQ]/g, '0')
+        .replace(/I/g, '1')
+        .replace(/B/g, '8');
+
+      // Wajib memiliki setidaknya 1 digit angka asli atau panjang >= 2 digit dan tidak diawali 0
+      if (!/^[1-9][0-9]{0,3}$/.test(digits)) continue;
+
+      const suffix = rawSuffix
+        .replace(/0/g, 'O')
+        .replace(/1/g, 'I')
+        .replace(/8/g, 'B');
+
+      if (!/^[A-Z]{1,3}$/.test(suffix)) continue;
+
+      const totalLen = rawPrefix.length + digits.length + suffix.length;
+      if (totalLen < 5) continue;
+
+      return `${rawPrefix} ${digits} ${suffix}`;
     }
   }
 
@@ -169,9 +185,7 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
 };
 
 /**
- * Resolusi cerdas antara 2 frame yang hampir identik (contoh: Frame 1 = "B 1234 WIG", Frame 2 = "B 1234 WLG").
- * Jika Kode Wilayah dan Angka Tengah SAMA PERSIS ("B 1234"), dan seri belakang hanya beda "I" vs "L"
- * (karena font plat Indonesia ramping sehingga "L" kadang terbaca "I"), otomatis pilih varian yang memiliki huruf "L"!
+ * Resolusi cerdas antara 2 frame yang hampir identik (contoh: "B 1234 WIG" & "B 1234 WLG" -> "B 1234 WLG").
  */
 const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
   if (plateA === plateB) return plateA;
@@ -179,15 +193,12 @@ const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
   const partsA = plateA.split(' ');
   const partsB = plateB.split(' ');
   if (partsA.length !== 3 || partsB.length !== 3) return null;
-
-  // Wilayah dan Nomor Tengah harus sama persis (contoh sama-sama "B" dan "1234")
   if (partsA[0] !== partsB[0] || partsA[1] !== partsB[1]) return null;
 
   const seriA = partsA[2];
   const seriB = partsB[2];
   if (seriA.length !== seriB.length) return null;
 
-  // Cek apakah perbedaannya hanya karakter 'L' vs 'I' (atau 'G' vs 'C', 'O' vs 'Q')
   let diffCount = 0;
   let mergedSeri = '';
 
@@ -197,7 +208,6 @@ const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
     if (ca === cb) {
       mergedSeri += ca;
     } else if ((ca === 'L' && cb === 'I') || (ca === 'I' && cb === 'L')) {
-      // Pilih 'L' karena huruf 'L' yang kakinya tipis sering terbaca 'I', tapi huruf 'I' tidak pernah punya kaki 'L'
       mergedSeri += 'L';
       diffCount++;
     } else if ((ca === 'G' && cb === 'C') || (ca === 'C' && cb === 'G')) {
@@ -214,7 +224,51 @@ const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
   return null;
 };
 
-const COUNTDOWN_DURATION_MS = 550;
+/**
+ * Decode output tensor SVTR26-Tiny [1, 32, 38] menggunakan algoritma CTC Greedy + Softmax Probability
+ */
+const decodeSvtrCtcOutput = (logits: Float32Array): { text: string; confidence: number } => {
+  const timeSteps = 32;
+  const numClasses = 38;
+  let text = '';
+  let prevIdx = 0;
+  const charProbs: number[] = [];
+
+  for (let t = 0; t < timeSteps; t++) {
+    const offset = t * numClasses;
+    let maxLogit = -1e9;
+    let maxIdx = 0;
+
+    for (let c = 0; c < numClasses; c++) {
+      const val = logits[offset + c];
+      if (val > maxLogit) {
+        maxLogit = val;
+        maxIdx = c;
+      }
+    }
+
+    if (maxIdx !== 0 && maxIdx !== prevIdx) {
+      // Hitung softmax probability untuk karakter terpilih
+      let sumExp = 0;
+      for (let c = 0; c < numClasses; c++) {
+        sumExp += Math.exp(logits[offset + c] - maxLogit);
+      }
+      const prob = 1 / sumExp;
+      text += SVTR_CHARS[maxIdx] || '';
+      charProbs.push(prob);
+    }
+    prevIdx = maxIdx;
+  }
+
+  const avgConf =
+    charProbs.length > 0
+      ? charProbs.reduce((acc, v) => acc + v, 0) / charProbs.length
+      : 0;
+
+  return { text, confidence: avgConf };
+};
+
+const COUNTDOWN_DURATION_MS = 500;
 
 export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   isOpen,
@@ -223,23 +277,23 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const workerRef = useRef<Worker | null>(null);
-  const nativeDetectorRef = useRef<any>(null);
   const isScanningRef = useRef<boolean>(false);
   const isLockedPreviewRef = useRef<boolean>(false);
-  const cropCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const invertCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Riwayat kandidat 5 frame terakhir agar tidak pernah macet/reset saat ada 1 frame goyang
+  const detCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const recCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const snapCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const recentCandidatesRef = useRef<Array<{ plate: string; confidence: number; time: number }>>([]);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [isWorkerReady, setIsWorkerReady] = useState(false);
-  const [workerStatusText, setWorkerStatusText] = useState('Menyiapkan mesin ANPR...');
+  const [isModelReady, setIsModelReady] = useState(false);
+  const [statusText, setStatusText] = useState('Memuat model AI YOLOv8-Plate + SVTR...');
   const [detectedPlate, setDetectedPlate] = useState<string | null>(null);
   const [candidateHint, setCandidateHint] = useState<string | null>(null);
+  const [trackedBox, setTrackedBox] = useState<DetectedBoxNormalized | null>(null);
   const [countdownProgress, setCountdownProgress] = useState<number>(0);
   const [capturedSnapshot, setCapturedSnapshot] = useState<string | null>(null);
   const [isShutterFlash, setIsShutterFlash] = useState(false);
@@ -293,62 +347,34 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     }
   };
 
-  // 2. Inisialisasi Hardware Native TextDetector + ANPR Worker
+  // 2. Load Model Deep Learning ANPR (YOLOv8n-Efficient + SVTR26-Tiny)
   useEffect(() => {
     let isCancelled = false;
 
-    const initAnprEngine = async () => {
-      try {
-        setWorkerStatusText('Mengaktifkan sensor ANPR Plat Nomor...');
-
-        const Win = window as any;
-        if (typeof Win.TextDetector === 'function') {
-          try {
-            nativeDetectorRef.current = new Win.TextDetector();
-          } catch {
-            nativeDetectorRef.current = null;
-          }
-        }
-
-        const worker = await createWorker('eng');
-        if (isCancelled) {
-          await worker.terminate();
-          return;
-        }
-
-        await worker.setParameters({
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ',
-          tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-        });
-
-        workerRef.current = worker;
-        setIsWorkerReady(true);
-        setWorkerStatusText('Arahkan kamera ke plat — Otomatis Jepret saat terbaca');
-      } catch (err) {
-        console.error('Failed to init ANPR worker:', err);
-        if (!isCancelled) {
-          setWorkerStatusText('Sensor kamera siap');
-          setIsWorkerReady(true);
-        }
-      }
-    };
-
     if (isOpen) {
-      initAnprEngine();
+      setStatusText('Memuat model AI YOLOv8-Plate + SVTR...');
+      ensureAnprSessions()
+        .then(() => {
+          if (!isCancelled) {
+            setIsModelReady(true);
+            setStatusText('AI ANPR Aktif — Arahkan ke plat nomor (jauh/dekat otomatis terdeteksi)');
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load ONNX ANPR models:', err);
+          if (!isCancelled) {
+            setStatusText('Gagal memuat model AI, gunakan tombol Manual');
+          }
+        });
     }
 
     return () => {
       isCancelled = true;
       clearPreviewTimers();
-      if (workerRef.current) {
-        workerRef.current.terminate().catch(() => {});
-        workerRef.current = null;
-      }
-      setIsWorkerReady(false);
     };
   }, [isOpen]);
 
-  // 3. Start Camera Hardware dengan Resolusi Tajam & Autofocus Kontinu
+  // 3. Start Camera Hardware
   const startCamera = async (mode: 'environment' | 'user') => {
     stopCameraHardware();
     setErrorMsg(null);
@@ -364,8 +390,8 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: mode },
-          width: { ideal: 1920, min: 1280 },
-          height: { ideal: 1080, min: 720 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
           // @ts-ignore
           focusMode: { ideal: 'continuous' },
         } as MediaTrackConstraints,
@@ -380,11 +406,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     } catch (err1) {
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: mode },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
+          video: true,
           audio: false,
         });
         streamRef.current = fallbackStream;
@@ -393,164 +415,221 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           await videoRef.current.play().catch(() => {});
         }
         isScanningRef.current = true;
-      } catch (err2) {
-        try {
-          const genericStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          });
-          streamRef.current = genericStream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = genericStream;
-            await videoRef.current.play().catch(() => {});
-          }
-          isScanningRef.current = true;
-        } catch (finalErr: any) {
-          console.error('All camera attempts failed:', finalErr);
-          if (finalErr.name === 'NotAllowedError' || finalErr.name === 'PermissionDeniedError') {
-            setErrorMsg(
-              'Izin akses kamera diblokir. Klik ikon gembok / kamera di address bar browser untuk mengizinkan.'
-            );
-          } else if (finalErr.name === 'NotFoundError' || finalErr.name === 'DevicesNotFoundError') {
-            setErrorMsg('Kamera (webcam) tidak ditemukan di perangkat ini.');
-          } else {
-            setErrorMsg(finalErr.message || 'Gagal menyalakan kamera.');
-          }
+      } catch (finalErr: any) {
+        console.error('All camera attempts failed:', finalErr);
+        if (finalErr.name === 'NotAllowedError' || finalErr.name === 'PermissionDeniedError') {
+          setErrorMsg(
+            'Izin akses kamera diblokir. Klik ikon gembok / kamera di address bar browser untuk mengizinkan.'
+          );
+        } else if (finalErr.name === 'NotFoundError' || finalErr.name === 'DevicesNotFoundError') {
+          setErrorMsg('Kamera (webcam) tidak ditemukan di perangkat ini.');
+        } else {
+          setErrorMsg(finalErr.message || 'Gagal menyalakan kamera.');
         }
       }
     }
   };
 
   /**
-   * 4. ANPR Stage 1:
-   *    - Deteksi Otomatis Warna Dasar Plat (`isDarkPlate`: Plat Hitam vs Plat Putih/Kuning)
-   *      agar langsung memprioritaskan canvas yang tepat (2x lebih cepat!).
-   *    - Horizontal Aspect Stretching (1.22x lebih lebar) untuk melebarkan font plat Indonesia
-   *      yang ramping/condensed, sehingga kaki horizontal huruf 'L' pada "WLG" terlihat jelas
-   *      oleh OCR dan tidak disangka huruf 'I' ("WIG").
+   * 4. Jalankan YOLOv8n-Efficient (416x416) untuk mencari koordinat kotak plat nomor di seluruh layar kamera
    */
-  const captureAnprPlateCanvases = (): {
-    primaryCanvas: HTMLCanvasElement;
-    secondaryCanvas: HTMLCanvasElement;
-    snapshotCanvas: HTMLCanvasElement;
-  } | null => {
-    const video = videoRef.current;
-    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
+  const detectPlateBoxWithYolo = async (
+    video: HTMLVideoElement,
+    visibleX: number,
+    visibleY: number,
+    visibleW: number,
+    visibleH: number
+  ): Promise<{
+    cropX: number;
+    cropY: number;
+    cropW: number;
+    cropH: number;
+    conf: number;
+    boxNorm: DetectedBoxNormalized;
+  } | null> => {
+    if (!cachedDetSession) return null;
 
-    if (!cropCanvasRef.current) {
-      cropCanvasRef.current = document.createElement('canvas');
+    if (!detCanvasRef.current) {
+      detCanvasRef.current = document.createElement('canvas');
     }
-    if (!invertCanvasRef.current) {
-      invertCanvasRef.current = document.createElement('canvas');
+    const canvas = detCanvasRef.current;
+    const size = 416;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+
+    // Letterbox resize area visible video ke 416x416
+    const scale = Math.min(size / visibleW, size / visibleH);
+    const nw = Math.round(visibleW * scale);
+    const nh = Math.round(visibleH * scale);
+    const padX = Math.floor((size - nw) / 2);
+    const padY = Math.floor((size - nh) / 2);
+
+    ctx.fillStyle = 'rgb(114, 114, 114)';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(video, visibleX, visibleY, visibleW, visibleH, padX, padY, nw, nh);
+
+    const imgData = ctx.getImageData(0, 0, size, size).data;
+    const floatData = new Float32Array(3 * size * size);
+    const planeSize = size * size;
+
+    for (let i = 0; i < planeSize; i++) {
+      const idx = i * 4;
+      floatData[i] = imgData[idx] / 255.0; // R
+      floatData[planeSize + i] = imgData[idx + 1] / 255.0; // G
+      floatData[2 * planeSize + i] = imgData[idx + 2] / 255.0; // B
     }
 
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const cw = video.clientWidth || vw;
-    const ch = video.clientHeight || vh;
+    const inputTensor = new ort.Tensor('float32', floatData, [1, 3, size, size]);
+    const outMap = await cachedDetSession.run({ images: inputTensor });
+    const outData = outMap.output0.data as Float32Array;
+    const numAnchors = 3549;
 
-    const videoAspect = vw / vh;
-    const containerAspect = cw / ch;
+    let bestConf = 0;
+    let bestAnchor = -1;
 
-    let visibleX = 0;
-    let visibleY = 0;
-    let visibleW = vw;
-    let visibleH = vh;
-
-    if (videoAspect > containerAspect) {
-      visibleW = vh * containerAspect;
-      visibleX = (vw - visibleW) / 2;
-    } else {
-      visibleH = vw / containerAspect;
-      visibleY = (vh - visibleH) / 2;
-    }
-
-    const boxW = Math.round(visibleW * 0.82);
-    const boxH = Math.round(visibleH * 0.30);
-    const boxX = Math.round(visibleX + (visibleW - boxW) / 2);
-    const boxY = Math.round(visibleY + (visibleH - boxH) / 2);
-
-    // Lebarkan aspek horizontal 1.22x agar huruf ramping seperti 'L' pada "WLG" memiliki kaki bawah yang lebar & jelas
-    const baseW = 760;
-    const baseH = Math.max(180, Math.round((boxH / boxW) * baseW));
-    const targetW = Math.round(baseW * 1.22);
-    const targetH = baseH;
-
-    const normalCanvas = cropCanvasRef.current;
-    normalCanvas.width = targetW;
-    normalCanvas.height = targetH;
-    const normalCtx = normalCanvas.getContext('2d', { willReadFrequently: true });
-    if (!normalCtx) return null;
-
-    normalCtx.drawImage(video, boxX, boxY, boxW, boxH, 0, 0, targetW, targetH);
-
-    const invertedCanvas = invertCanvasRef.current;
-    invertedCanvas.width = targetW;
-    invertedCanvas.height = targetH;
-    const invertCtx = invertedCanvas.getContext('2d', { willReadFrequently: true });
-    if (!invertCtx) return null;
-
-    let isDarkPlate = false;
-
-    try {
-      const imgData = normalCtx.getImageData(0, 0, targetW, targetH);
-      const invData = invertCtx.createImageData(targetW, targetH);
-      const d = imgData.data;
-      const inv = invData.data;
-
-      // Hitung rata-rata kecerahan untuk mendeteksi apakah ini Plat Hitam atau Plat Putih/Kuning
-      let sumGray = 0;
-      const pixelCount = d.length / 4;
-      const contrast = 24;
-      const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
-
-      for (let i = 0; i < d.length; i += 4) {
-        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        sumGray += gray;
-
-        const cNorm = Math.max(0, Math.min(255, factor * (gray - 128) + 128));
-        d[i] = cNorm;
-        d[i + 1] = cNorm;
-        d[i + 2] = cNorm;
-
-        const invGray = 255 - gray;
-        const cInv = Math.max(0, Math.min(255, factor * (invGray - 128) + 128));
-        inv[i] = cInv;
-        inv[i + 1] = cInv;
-        inv[i + 2] = cInv;
-        inv[i + 3] = 255;
+    for (let i = 0; i < numAnchors; i++) {
+      const conf = outData[4 * numAnchors + i];
+      if (conf > bestConf) {
+        bestConf = conf;
+        bestAnchor = i;
       }
-
-      const avgGray = sumGray / pixelCount;
-      // Jika rata-rata piksel gelap (< 122), berarti ini Plat Hitam (tulisan putih di latar hitam)
-      isDarkPlate = avgGray < 122;
-
-      normalCtx.putImageData(imgData, 0, 0);
-      invertCtx.putImageData(invData, 0, 0);
-    } catch {
-      invertCtx.drawImage(normalCanvas, 0, 0);
     }
+
+    if (bestAnchor < 0 || bestConf < 0.22) {
+      return null;
+    }
+
+    const cx = outData[0 * numAnchors + bestAnchor];
+    const cy = outData[1 * numAnchors + bestAnchor];
+    const w = outData[2 * numAnchors + bestAnchor];
+    const h = outData[3 * numAnchors + bestAnchor];
+
+    // Konversi kembali ke koordinat di dalam area visible video
+    const relX1 = Math.max(0, (cx - w / 2 - padX) / scale);
+    const relY1 = Math.max(0, (cy - h / 2 - padY) / scale);
+    const relX2 = Math.min(visibleW, (cx + w / 2 - padX) / scale);
+    const relY2 = Math.min(visibleH, (cy + h / 2 - padY) / scale);
+
+    const cropW = Math.round(relX2 - relX1);
+    const cropH = Math.round(relY2 - relY1);
+    if (cropW < 24 || cropH < 10) return null;
+
+    const cropX = Math.round(visibleX + relX1);
+    const cropY = Math.round(visibleY + relY1);
 
     return {
-      primaryCanvas: isDarkPlate ? invertedCanvas : normalCanvas,
-      secondaryCanvas: isDarkPlate ? normalCanvas : invertedCanvas,
-      snapshotCanvas: normalCanvas,
+      cropX,
+      cropY,
+      cropW,
+      cropH,
+      conf: bestConf,
+      boxNorm: {
+        leftPct: Math.max(2, Math.min(95, (relX1 / visibleW) * 100)),
+        topPct: Math.max(2, Math.min(95, (relY1 / visibleH) * 100)),
+        widthPct: Math.max(8, Math.min(96, (cropW / visibleW) * 100)),
+        heightPct: Math.max(5, Math.min(80, (cropH / visibleH) * 100)),
+        conf: bestConf,
+      },
     };
   };
 
   /**
-   * Mulai Preview Singkat (0.55 Detik) dengan Progress Bar sebelum Auto-Jepret final.
+   * 5. Jalankan SVTR26-Tiny (128x32) untuk membaca karakter di dalam kotak plat yang ditemukan YOLOv8
    */
-  const startPreviewAndAutoSnap = (plate: string, snapshotCanvas: HTMLCanvasElement) => {
+  const recognizePlateCropWithSvtr = async (
+    video: HTMLVideoElement,
+    cropX: number,
+    cropY: number,
+    cropW: number,
+    cropH: number
+  ): Promise<{ rawText: string; plate: string | null; confidence: number; snapshotUrl: string }> => {
+    if (!cachedRecSession) {
+      return { rawText: '', plate: null, confidence: 0, snapshotUrl: '' };
+    }
+
+    if (!recCanvasRef.current) {
+      recCanvasRef.current = document.createElement('canvas');
+    }
+    if (!snapCanvasRef.current) {
+      snapCanvasRef.current = document.createElement('canvas');
+    }
+
+    // Simpan snapshot tajam untuk preview
+    const snapCanvas = snapCanvasRef.current;
+    snapCanvas.width = Math.max(240, cropW);
+    snapCanvas.height = Math.max(80, cropH);
+    const snapCtx = snapCanvas.getContext('2d');
+    let snapshotUrl = '';
+    if (snapCtx) {
+      snapCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, snapCanvas.width, snapCanvas.height);
+      try {
+        snapshotUrl = snapCanvas.toDataURL('image/jpeg', 0.9);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    const recW = 128;
+    const recH = 32;
+    const recCanvas = recCanvasRef.current;
+    recCanvas.width = recW;
+    recCanvas.height = recH;
+    const recCtx = recCanvas.getContext('2d', { willReadFrequently: true });
+    if (!recCtx) {
+      return { rawText: '', plate: null, confidence: 0, snapshotUrl };
+    }
+
+    // Coba baca tinggi penuh (1.0) dan tinggi fokus baris utama (0.85 tanpa baris pajak)
+    for (const hRatio of [1.0, 0.85]) {
+      const effectiveH = Math.max(10, Math.round(cropH * hRatio));
+      recCtx.drawImage(video, cropX, cropY, cropW, effectiveH, 0, 0, recW, recH);
+
+      const imgData = recCtx.getImageData(0, 0, recW, recH).data;
+      const planeSize = recW * recH;
+      const floatData = new Float32Array(3 * planeSize);
+
+      for (let i = 0; i < planeSize; i++) {
+        const idx = i * 4;
+        floatData[i] = (imgData[idx] / 255.0 - 0.5) / 0.5; // R
+        floatData[planeSize + i] = (imgData[idx + 1] / 255.0 - 0.5) / 0.5; // G
+        floatData[2 * planeSize + i] = (imgData[idx + 2] / 255.0 - 0.5) / 0.5; // B
+      }
+
+      const inputTensor = new ort.Tensor('float32', floatData, [1, 3, recH, recW]);
+      const outMap = await cachedRecSession.run({ input: inputTensor });
+      const logits = outMap.output.data as Float32Array;
+
+      const { text, confidence } = decodeSvtrCtcOutput(logits);
+      const parsedPlate = extractIndonesianPlate(text);
+      if (parsedPlate) {
+        return {
+          rawText: text,
+          plate: parsedPlate,
+          confidence,
+          snapshotUrl,
+        };
+      }
+      if (hRatio === 1.0 && text) {
+        setRawOcrPreview(text);
+      }
+    }
+
+    return { rawText: '', plate: null, confidence: 0, snapshotUrl };
+  };
+
+  /**
+   * Mulai Preview 0.5 Detik dengan Progress Bar sebelum Auto-Jepret final.
+   */
+  const startPreviewAndAutoSnap = (plate: string, snapshotUrl: string) => {
     if (isLockedPreviewRef.current) return;
     isLockedPreviewRef.current = true;
     isScanningRef.current = false;
     setCandidateHint(null);
 
-    try {
-      setCapturedSnapshot(snapshotCanvas.toDataURL('image/jpeg', 0.9));
-    } catch {
-      /* ignore */
+    if (snapshotUrl) {
+      setCapturedSnapshot(snapshotUrl);
     }
 
     setIsShutterFlash(true);
@@ -583,6 +662,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     recentCandidatesRef.current = [];
     setDetectedPlate(null);
     setCandidateHint(null);
+    setTrackedBox(null);
     setCapturedSnapshot(null);
     setCountdownProgress(0);
     isScanningRef.current = true;
@@ -597,35 +677,34 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   };
 
   /**
-   * Evaluasi kandidat plat dengan Rolling Window (5 pembacaan terakhir dalam 3.5 detik)
-   * + Resolusi Cerdas "WLG" vs "WIG" agar:
-   * 1. TIDAK PERNAH macet/lama di "Memastikan akurasi..." walaupun ada 1 frame selingan.
-   * 2. Jika 1 frame terbaca "WIG" dan frame lain terbaca "WLG", otomatis digabung menjadi "B 1234 WLG"!
+   * Evaluasi hasil bacaan SVTR26:
+   * - Jika confidence tinggi (>= 0.82) dari deteksi kotak YOLOv8, langsung kunci!
+   * - Atau jika cocok/mirip dengan bacaan sebelumnya dalam 3.5 detik terakhir, langsung kunci!
    */
   const registerCandidateHit = (
     plate: string,
     confidence: number,
-    canvas: HTMLCanvasElement
+    isFromYoloBox: boolean,
+    snapshotUrl: string
   ): boolean => {
     const now = Date.now();
-    // Pertahankan kandidat dalam 3.5 detik terakhir
     const recent = recentCandidatesRef.current.filter((item) => now - item.time < 3500);
 
-    // Cek apakah sudah ada kandidat yang sama ATAU mirip (beda tipis 'L' vs 'I' seperti WLG vs WIG) di riwayat 3.5 detik terakhir
+    // 1. Jika ditemukan langsung oleh YOLOv8-Plate Detector dengan confidence SVTR tinggi (>= 0.84), langsung jepret!
+    if (isFromYoloBox && confidence >= 0.84) {
+      recentCandidatesRef.current = [];
+      startPreviewAndAutoSnap(plate, snapshotUrl);
+      return true;
+    }
+
+    // 2. Cek apakah cocok atau beda tipis 'L' vs 'I' dengan frame sebelumnya
     for (const prev of recent) {
       const merged = mergeSimilarPlates(prev.plate, plate);
       if (merged) {
         recentCandidatesRef.current = [];
-        startPreviewAndAutoSnap(merged, canvas);
+        startPreviewAndAutoSnap(merged, snapshotUrl);
         return true;
       }
-    }
-
-    // Jika plat mengandung huruf 'L' (tidak rancu dengan 'I') dan confidence sangat tinggi (>= 78%), langsung kunci cepat!
-    if (confidence >= 78 && plate.length >= 9 && !plate.split(' ')[2]?.includes('I')) {
-      recentCandidatesRef.current = [];
-      startPreviewAndAutoSnap(plate, canvas);
-      return true;
     }
 
     recent.push({ plate, confidence, time: now });
@@ -634,9 +713,9 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     return false;
   };
 
-  // 5. Loop ANPR Kontinu Cepat
+  // 6. Loop Real-Time YOLOv8 + SVTR26 ANPR
   useEffect(() => {
-    if (!isOpen || !isWorkerReady || manualMode) return;
+    if (!isOpen || !isModelReady || manualMode) return;
 
     let timerId: ReturnType<typeof setTimeout> | null = null;
     let isCancelled = false;
@@ -644,78 +723,110 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     const processNextFrame = async () => {
       if (isCancelled) return;
 
+      const video = videoRef.current;
       if (
         isLockedPreviewRef.current ||
         !isScanningRef.current ||
-        !workerRef.current ||
-        !videoRef.current ||
-        videoRef.current.readyState < 2
+        !cachedDetSession ||
+        !cachedRecSession ||
+        !video ||
+        video.readyState < 2 ||
+        !video.videoWidth ||
+        !video.videoHeight
       ) {
-        timerId = setTimeout(processNextFrame, 150);
-        return;
-      }
-
-      const canvases = captureAnprPlateCanvases();
-      if (!canvases) {
-        timerId = setTimeout(processNextFrame, 150);
+        timerId = setTimeout(processNextFrame, 120);
         return;
       }
 
       setIsProcessingFrame(true);
 
       try {
-        // Tahap A: Hardware-Accelerated Native TextDetector (jika didukung browser)
-        if (nativeDetectorRef.current) {
-          try {
-            const blocks = await nativeDetectorRef.current.detect(canvases.snapshotCanvas);
-            if (Array.isArray(blocks) && blocks.length > 0) {
-              const joinedNative = blocks.map((b: any) => b.rawValue || '').join('\n');
-              const nativePlate = extractIndonesianPlate(joinedNative);
-              if (nativePlate && !isLockedPreviewRef.current && !isCancelled) {
-                if (registerCandidateHit(nativePlate, 90, canvases.snapshotCanvas)) {
-                  return;
-                }
-              }
-            }
-          } catch {
-            /* fallback ke worker */
-          }
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        const cw = video.clientWidth || vw;
+        const ch = video.clientHeight || vh;
+
+        const videoAspect = vw / vh;
+        const containerAspect = cw / ch;
+
+        let visibleX = 0;
+        let visibleY = 0;
+        let visibleW = vw;
+        let visibleH = vh;
+
+        if (videoAspect > containerAspect) {
+          visibleW = vh * containerAspect;
+          visibleX = (vw - visibleW) / 2;
+        } else {
+          visibleH = vw / containerAspect;
+          visibleY = (vh - visibleH) / 2;
         }
 
-        // Tahap B: Scan Primary Canvas (Otomatis pilih Inverted jika Plat Hitam, atau Normal jika Plat Putih/Kuning)
-        const resPrimary = await workerRef.current.recognize(canvases.primaryCanvas);
-        const textPrimary = resPrimary?.data?.text || '';
-        const confPrimary = Number(resPrimary?.data?.confidence ?? 0);
-        const platePrimary = confPrimary >= 50 ? extractIndonesianPlate(textPrimary) : null;
+        // Tahap 1: Cari kotak plat nomor dengan YOLOv8n-Efficient
+        const detected = await detectPlateBoxWithYolo(
+          video,
+          visibleX,
+          visibleY,
+          visibleW,
+          visibleH
+        );
 
-        if (platePrimary && !isLockedPreviewRef.current && !isCancelled) {
-          if (registerCandidateHit(platePrimary, confPrimary, canvases.snapshotCanvas)) {
-            return;
-          }
-        }
+        if (detected && !isCancelled && !isLockedPreviewRef.current) {
+          setTrackedBox(detected.boxNorm);
 
-        // Tahap C: Hanya jalankan Secondary Canvas jika Primary tidak menemukan kandidat plat sama sekali
-        if (!platePrimary && !isLockedPreviewRef.current && !isCancelled && workerRef.current) {
-          const resSec = await workerRef.current.recognize(canvases.secondaryCanvas);
-          const textSec = resSec?.data?.text || '';
-          const confSec = Number(resSec?.data?.confidence ?? 0);
-          const plateSec = confSec >= 50 ? extractIndonesianPlate(textSec) : null;
+          // Tahap 2: Baca isi kotak plat yang ditemukan YOLOv8 menggunakan SVTR26-Tiny
+          const recResult = await recognizePlateCropWithSvtr(
+            video,
+            detected.cropX,
+            detected.cropY,
+            detected.cropW,
+            detected.cropH
+          );
 
-          if (plateSec && !isLockedPreviewRef.current && !isCancelled) {
-            if (registerCandidateHit(plateSec, confSec, canvases.snapshotCanvas)) {
+          if (recResult.plate && !isCancelled && !isLockedPreviewRef.current) {
+            if (
+              registerCandidateHit(
+                recResult.plate,
+                recResult.confidence,
+                true,
+                recResult.snapshotUrl
+              )
+            ) {
               return;
             }
           }
+        } else if (!isCancelled && !isLockedPreviewRef.current) {
+          setTrackedBox(null);
 
-          const bestText = (plateSec || textPrimary.trim() || textSec.trim()).replace(/\s+/g, ' ');
-          if (bestText && bestText.length >= 3) {
-            setRawOcrPreview(bestText);
+          // Fallback jika plat didekatkan sangat dekat memenuhi kotak tengah
+          const fallbackW = Math.round(visibleW * 0.78);
+          const fallbackH = Math.round(visibleH * 0.26);
+          const fallbackX = Math.round(visibleX + (visibleW - fallbackW) / 2);
+          const fallbackY = Math.round(visibleY + (visibleH - fallbackH) / 2);
+
+          const recFallback = await recognizePlateCropWithSvtr(
+            video,
+            fallbackX,
+            fallbackY,
+            fallbackW,
+            fallbackH
+          );
+
+          if (recFallback.plate && !isCancelled && !isLockedPreviewRef.current) {
+            if (
+              registerCandidateHit(
+                recFallback.plate,
+                recFallback.confidence,
+                false,
+                recFallback.snapshotUrl
+              )
+            ) {
+              return;
+            }
           }
-        } else if (platePrimary) {
-          setRawOcrPreview(platePrimary);
         }
       } catch (err) {
-        console.warn('ANPR frame recognition error:', err);
+        console.warn('ANPR ONNX inference error:', err);
       } finally {
         if (!isCancelled) {
           setIsProcessingFrame(false);
@@ -723,17 +834,17 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       }
 
       if (!isCancelled) {
-        timerId = setTimeout(processNextFrame, 90);
+        timerId = setTimeout(processNextFrame, 60);
       }
     };
 
-    timerId = setTimeout(processNextFrame, 120);
+    timerId = setTimeout(processNextFrame, 100);
 
     return () => {
       isCancelled = true;
       if (timerId) clearTimeout(timerId);
     };
-  }, [isOpen, isWorkerReady, manualMode]);
+  }, [isOpen, isModelReady, manualMode]);
 
   // Handle buka/tutup kamera
   useEffect(() => {
@@ -742,6 +853,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       recentCandidatesRef.current = [];
       setDetectedPlate(null);
       setCandidateHint(null);
+      setTrackedBox(null);
       setCapturedSnapshot(null);
       setCountdownProgress(0);
       setRawOcrPreview('');
@@ -789,7 +901,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Scan Kamera Plat Nomor (ANPR)"
+      aria-label="Scan Kamera Plat Nomor (AI ANPR)"
       className="fixed inset-0 z-[9999] flex items-stretch justify-center bg-black/95 backdrop-blur-md sm:items-center sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) handleClose();
@@ -807,10 +919,10 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
             </div>
             <div className="min-w-0">
               <h3 className="truncate text-sm font-bold text-ink sm:text-base">
-                ANPR Scanner Plat Nomor
+                AI ANPR Scanner (YOLOv8 + SVTR)
               </h3>
               <p className="truncate text-[10px] font-semibold text-status-green">
-                Deteksi Cepat Otomatis Jepret
+                Deteksi Otomatis Kotak Plat Nomor (Jauh / Dekat)
               </p>
             </div>
           </div>
@@ -823,7 +935,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           </button>
         </div>
 
-        {/* Viewport Kamera dengan Overlay Proporsi Plat Nomor Indonesia */}
+        {/* Viewport Kamera */}
         <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black sm:aspect-[4/3] sm:flex-none">
           {errorMsg ? (
             <div className="m-4 max-w-sm space-y-3 rounded-2xl border border-border bg-surface-raised p-5 text-center">
@@ -854,14 +966,31 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                 <div className="pointer-events-none absolute inset-0 z-30 bg-white/80 transition-opacity duration-150" />
               )}
 
-              {/* Bounding Box Proporsi Plat Nomor Indonesia (Lebar 82%, Tinggi 30%) */}
+              {/* Kotak Hijau Dinamis Hasil Deteksi YOLOv8 di Posisi Plat Sebenarnya */}
+              {trackedBox && !detectedPlate && (
+                <div
+                  className="pointer-events-none absolute z-20 rounded-lg border-2 border-status-green bg-status-green/15 shadow-[0_0_20px_rgba(34,197,94,0.8)] transition-all duration-100"
+                  style={{
+                    left: `${trackedBox.leftPct}%`,
+                    top: `${trackedBox.topPct}%`,
+                    width: `${trackedBox.widthPct}%`,
+                    height: `${trackedBox.heightPct}%`,
+                  }}
+                >
+                  <span className="absolute -top-5 left-0 rounded bg-status-green px-1.5 py-0.5 font-mono text-[9px] font-bold text-white shadow">
+                    PLAT {(trackedBox.conf * 100).toFixed(0)}%
+                  </span>
+                </div>
+              )}
+
+              {/* Bounding Box Panduan Tengah / Hasil Jepret */}
               <div
-                className={`pointer-events-none absolute left-1/2 top-1/2 h-[30%] w-[82%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-2 transition-all duration-200 ${
+                className={`pointer-events-none absolute left-1/2 top-1/2 h-[32%] w-[82%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-2 transition-all duration-200 ${
                   detectedPlate
-                    ? 'border-status-green bg-black/75 shadow-[0_0_40px_rgba(34,197,94,0.85)] scale-[1.03]'
+                    ? 'border-status-green bg-black/80 shadow-[0_0_40px_rgba(34,197,94,0.85)] scale-[1.03]'
                     : candidateHint
-                    ? 'border-amber-400 bg-amber-500/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.62)]'
-                    : 'border-white/85 shadow-[0_0_0_9999px_rgba(0,0,0,0.62)]'
+                    ? 'border-amber-400 bg-amber-500/10'
+                    : 'border-white/50'
                 }`}
               >
                 {/* Freeze frame hasil auto-capture */}
@@ -869,7 +998,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                   <img
                     src={capturedSnapshot}
                     alt="Captured plate"
-                    className="absolute inset-0 h-full w-full object-cover opacity-35"
+                    className="absolute inset-0 h-full w-full object-contain opacity-35"
                   />
                 )}
 
@@ -878,11 +1007,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                 <div className="absolute -right-1 -top-1 h-5 w-5 border-r-4 border-t-4 border-accent rounded-tr-lg" />
                 <div className="absolute -bottom-1 -left-1 h-5 w-5 border-b-4 border-l-4 border-accent rounded-bl-lg" />
                 <div className="absolute -bottom-1 -right-1 h-5 w-5 border-b-4 border-r-4 border-accent rounded-br-lg" />
-
-                {/* Laser scan line animation (jika belum terdeteksi) */}
-                {!detectedPlate && (
-                  <div className="absolute inset-x-2 top-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_8px_rgba(234,88,12,0.8)] animate-[scanLaser_1.6s_ease-in-out_infinite]" />
-                )}
 
                 {/* Label Status & Preview di dalam kotak */}
                 <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-3 py-2 text-center">
@@ -917,11 +1041,11 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                         Mengunci fokus plat...
                       </span>
                     </div>
-                  ) : (
-                    <span className="rounded-lg bg-black/50 px-2.5 py-1 font-mono text-[11px] font-bold tracking-wider text-white/95 backdrop-blur-xs">
-                      Masukkan Seluruh Plat Nomor ke Dalam Kotak Ini
+                  ) : !trackedBox ? (
+                    <span className="rounded-lg bg-black/45 px-2.5 py-1 font-mono text-[11px] font-bold tracking-wider text-white/90 backdrop-blur-xs">
+                      Arahkan Kamera ke Kendaraan / Plat Nomor
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -960,12 +1084,12 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                       ? `Terdeteksi Akurat: ${detectedPlate}`
                       : candidateHint
                       ? `Terdeteksi: ${candidateHint} — Mengunci...`
-                      : workerStatusText}
+                      : statusText}
                   </span>
                 </div>
                 {rawOcrPreview && !detectedPlate && !candidateHint && (
                   <span className="max-w-[85%] truncate rounded-md bg-black/55 px-2 py-0.5 font-mono text-[10px] text-white/75 backdrop-blur-xs">
-                    Bacaan sensor: {rawOcrPreview}
+                    Sensor AI: {rawOcrPreview}
                   </span>
                 )}
               </div>
@@ -1026,7 +1150,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
 
             <div className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-status-green/30 bg-status-green-bg px-3 py-2.5 text-xs font-bold text-status-green">
               <Camera className="h-4 w-4 shrink-0 animate-pulse" />
-              <span className="truncate">ANPR Aktif (Arahkan ke Plat)</span>
+              <span className="truncate">YOLOv8 + SVTR AI ANPR Aktif</span>
             </div>
 
             <button
@@ -1042,15 +1166,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           </div>
         )}
       </div>
-
-      {/* Style laser animation */}
-      <style>{`
-        @keyframes scanLaser {
-          0% { top: 8%; opacity: 0.25; }
-          50% { top: 88%; opacity: 1; }
-          100% { top: 8%; opacity: 0.25; }
-        }
-      `}</style>
     </div>,
     document.body
   );
