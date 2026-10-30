@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Camera, Trash2, Plus, X, RefreshCw, CheckCircle2, Upload, Sparkles } from 'lucide-react';
+import { Camera, Trash2, Plus, X, RefreshCw, CheckCircle2, Sparkles } from 'lucide-react';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
 
 export interface PhotoSlot {
@@ -16,6 +16,17 @@ interface MultiCameraSectionProps {
   eventTitle: string; // 'Check In' or 'Check Out'
 }
 
+/**
+ * Deteksi apakah pengguna mengakses dari smartphone/tablet atau laptop/desktop.
+ */
+const isMobileDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return (
+    /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && window.innerWidth < 1024)
+  );
+};
+
 export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
   photos,
   onChange,
@@ -23,11 +34,21 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
 }) => {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadTargetSlotId, setUploadTargetSlotId] = useState<string | null>(null);
 
+  // Hidden native camera input untuk smartphone (langsung buka kamera belakang, tanpa popup galeri)
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
+  const [cameraTargetSlotId, setCameraTargetSlotId] = useState<string | null>(null);
+
+  // Handler buka kamera (Otomatis deteksi HP vs Laptop)
   const handleOpenCapture = (id: string) => {
-    setActiveSlotId(id);
+    if (isMobileDevice()) {
+      // Pada HP: buka shutter kamera native langsung tanpa dialog pemilih file
+      setCameraTargetSlotId(id);
+      nativeCameraInputRef.current?.click();
+    } else {
+      // Pada Laptop/PC: buka modal live stream kamera webcam
+      setActiveSlotId(id);
+    }
   };
 
   const handleCaptureComplete = (base64: string) => {
@@ -48,36 +69,33 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
     }
   };
 
-  const handleAddCustomSlot = (autoCapture: boolean = true) => {
+  const handleAddCustomSlot = () => {
     const nextIdx = photos.filter((p) => p.isCustom).length + 1;
+    const newSlotId = `custom_${Date.now()}`;
     const newSlot: PhotoSlot = {
-      id: `custom_${Date.now()}`,
+      id: newSlotId,
       label: `Foto Tambahan ${nextIdx}`,
       isCustom: true,
     };
     onChange([...photos, newSlot]);
-    if (autoCapture) {
-      setActiveSlotId(newSlot.id);
-    }
-    return newSlot.id;
+    handleOpenCapture(newSlotId);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handler foto yang diambil dari native camera HP
+  const handleNativeCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      if (uploadTargetSlotId) {
-        // Jika upload ke slot yang sudah ada
+      if (cameraTargetSlotId) {
         const updated = photos.map((slot) =>
-          slot.id === uploadTargetSlotId ? { ...slot, dataUrl: base64 } : slot
+          slot.id === cameraTargetSlotId ? { ...slot, dataUrl: base64 } : slot
         );
         onChange(updated);
-        setUploadTargetSlotId(null);
+        setCameraTargetSlotId(null);
       } else {
-        // Upload langsung sebagai slot foto tambahan baru
         const nextIdx = photos.filter((p) => p.isCustom).length + 1;
         const newSlot: PhotoSlot = {
           id: `custom_${Date.now()}`,
@@ -89,15 +107,10 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
       }
     };
     reader.readAsDataURL(file);
-    // Reset file input agar bisa upload file yang sama jika diinginkan
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
 
-  const triggerUploadForSlot = (slotId?: string) => {
-    setUploadTargetSlotId(slotId || null);
-    fileInputRef.current?.click();
+    if (nativeCameraInputRef.current) {
+      nativeCameraInputRef.current.value = '';
+    }
   };
 
   const activeSlot = photos.find((p) => p.id === activeSlotId);
@@ -105,13 +118,18 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
 
   return (
     <div className="space-y-3">
-      {/* Hidden file input for gallery upload */}
+      {/* 
+        Native Camera Input untuk Smartphone:
+        Atribut capture="environment" memaksa peramban mobile membuka aplikasi kamera perangkat langsung,
+        BUKAN membuka galeri / file manager.
+      */}
       <input
-        ref={fileInputRef}
+        ref={nativeCameraInputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         className="hidden"
-        onChange={handleFileChange}
+        onChange={handleNativeCameraCapture}
       />
 
       <div className="flex items-start justify-between gap-2">
@@ -135,17 +153,8 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            onClick={() => triggerUploadForSlot()}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-xl border border-border bg-surface-raised px-2.5 py-1.5 text-[11px] font-semibold text-ink-muted transition hover:bg-surface-sunken hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-95"
-            title="Upload file foto dari komputer / galeri"
-          >
-            <Upload className="h-3 w-3" />
-            Upload
-          </button>
-          <button
-            type="button"
-            onClick={() => handleAddCustomSlot(true)}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-xl border border-accent/30 bg-accent/10 px-2.5 py-1.5 text-[11px] font-bold text-accent transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-95"
+            onClick={handleAddCustomSlot}
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-xl border border-accent/30 bg-accent/10 px-3 py-1.5 text-[11px] font-bold text-accent transition hover:bg-accent/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-95"
           >
             <Plus className="h-3.5 w-3.5" />
             Tambah Foto
@@ -207,14 +216,6 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
                   <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => triggerUploadForSlot(slot.id)}
-                      title="Ganti dengan upload file"
-                      className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                    >
-                      <Upload className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => handleOpenCapture(slot.id)}
                       title="Ambil ulang lewat kamera"
                       className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-xs transition hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
@@ -228,22 +229,15 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
                   <button
                     type="button"
                     onClick={() => handleOpenCapture(slot.id)}
-                    className="flex w-full cursor-pointer flex-col items-center justify-center gap-1 focus-visible:outline-none"
+                    className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1.5 focus-visible:outline-none"
                     title="Buka kamera untuk foto sudut ini"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-sunken text-ink transition group-hover:bg-accent group-hover:text-white">
-                      <Camera className="h-4 w-4" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-sunken text-ink transition group-hover:bg-accent group-hover:text-white">
+                      <Camera className="h-4.5 w-4.5" />
                     </div>
                     <span className="text-[11px] font-bold text-ink group-hover:text-accent">
                       Buka Kamera
                     </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => triggerUploadForSlot(slot.id)}
-                    className="text-[10px] font-medium text-ink-subtle underline hover:text-accent focus-visible:outline-none"
-                  >
-                    atau upload file
                   </button>
                 </div>
               )}
@@ -251,7 +245,7 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
           );
         })}
 
-        {/* MODERN "ADD PHOTO" CARD TILE (Seperti di Web-Web Modern) */}
+        {/* Card Tambah Sudut Foto */}
         <div className="group relative flex flex-col justify-between rounded-2xl border border-dashed border-accent/40 bg-accent/[0.03] p-2 transition-all duration-200 hover:border-accent hover:bg-accent/[0.08] hover:shadow-xs">
           <div className="mb-1.5 flex items-center justify-between gap-1 px-1">
             <span className="truncate text-[10px] font-bold text-accent">
@@ -265,29 +259,22 @@ export const MultiCameraSection: React.FC<MultiCameraSectionProps> = ({
           <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-accent/30 bg-surface-raised/70 p-2 text-center transition group-hover:bg-surface-raised group-hover:border-accent/60">
             <button
               type="button"
-              onClick={() => handleAddCustomSlot(true)}
-              className="flex flex-col items-center justify-center gap-1 focus-visible:outline-none cursor-pointer"
+              onClick={handleAddCustomSlot}
+              className="flex h-full w-full flex-col items-center justify-center gap-1.5 focus-visible:outline-none cursor-pointer"
               title="Tambah foto lewat kamera"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-white shadow-xs transition hover:scale-110 hover:bg-accent-hover active:scale-95">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-white shadow-xs transition hover:scale-110 hover:bg-accent-hover active:scale-95">
                 <Plus className="h-4 w-4" />
               </div>
               <span className="text-[11px] font-bold text-ink group-hover:text-accent">
                 Foto Tambahan
               </span>
             </button>
-            <button
-              type="button"
-              onClick={() => triggerUploadForSlot()}
-              className="text-[10px] font-medium text-accent hover:underline focus-visible:outline-none cursor-pointer"
-            >
-              atau upload file
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Camera Capture Modal */}
+      {/* Camera Capture Modal (Webcam untuk Laptop / Komputer) */}
       {activeSlotId && (
         <CameraCaptureModal
           isOpen={true}

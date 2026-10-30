@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   LogIn,
   Search,
@@ -19,10 +19,13 @@ import {
   BadgeCheck,
   ShieldAlert,
   Calendar,
+  Keyboard,
+  Scan,
 } from 'lucide-react';
 import { securityApi } from '../api/client';
 import { CheckinCandidate, EmployeeItem } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
+import { PlateOcrScannerModal } from '../components/security/PlateOcrScannerModal';
 import { SelectMenu, SelectMenuOption } from '../components/common/SelectMenu';
 import { CheckinTicketModal, SuccessTicketData } from '../components/security/CheckinTicketModal';
 import { useSecurityStore } from '../store/useSecurityStore';
@@ -52,9 +55,7 @@ const candidateKey = (candidate: CheckinCandidate) =>
     : `MEMBER_UNIT:${candidate.unit_id ?? candidate.no_polisi_clean}`;
 
 const FIELD_CLASS = FIELD;
-
 const ICON_FIELD_CLASS = `${FIELD} pl-9`;
-
 const LABEL_CLASS = LABEL;
 
 const StatusLine: React.FC<{
@@ -82,32 +83,22 @@ export const CheckInView: React.FC = () => {
   const queryClient = useQueryClient();
   const currentUser = useSecurityStore((state) => state.user);
   const kodeCabang = useSecurityStore((state) => state.kodeCabang);
-  const namaCabang = useSecurityStore((state) => state.namaCabang);
   const canAutoFocus = !window.matchMedia?.('(pointer: coarse)').matches;
 
-  // Unified Plate Input
+  // Mode Input: 'manual' vs 'camera'
+  const [inputMode, setInputMode] = useState<'manual' | 'camera'>('manual');
+  const [isOcrModalOpen, setIsOcrModalOpen] = useState(false);
+
+  // Plate Input & Candidate State
   const [plateInput, setPlateInput] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [candidates, setCandidates] = useState<CheckinCandidate[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  // Selected candidate state
   const [selectedCandidate, setSelectedCandidate] = useState<CheckinCandidate | null>(null);
   const selectedCandidateRef = useRef<CheckinCandidate | null>(null);
-
-  const lookupPlate = normalizePlate(plateInput);
-
-  // TanStack Query: polling setiap 3 detik agar sinkron otomatis saat booking di-confirm admin!
-  const {
-    data: candidates = [],
-    isFetching: isSearching,
-  } = useQuery<CheckinCandidate[]>({
-    queryKey: ['checkin-candidates', lookupPlate],
-    queryFn: () =>
-      lookupPlate.length >= 3
-        ? securityApi.searchCheckinCandidates(lookupPlate)
-        : Promise.resolve([]),
-    enabled: lookupPlate.length >= 3,
-    refetchInterval: 3000,
-  });
+  const suggestionsBoxRef = useRef<HTMLDivElement>(null);
 
   // Driver and visit details
   const [namaPengemudi, setNamaPengemudi] = useState('');
@@ -117,7 +108,7 @@ export const CheckInView: React.FC = () => {
   const [keluhan, setKeluhan] = useState('');
   const [catatanMasuk, setCatatanMasuk] = useState('');
 
-  // PIC / Tujuan — diambil dari daftar karyawan (sch_pos.tbl_employee)
+  // PIC / Tujuan
   const [selectedPicId, setSelectedPicId] = useState('');
   const [employeeList, setEmployeeList] = useState<EmployeeItem[]>([]);
   const [isLoadingEmployees, setIsLoadingEmployees] = useState(true);
@@ -132,16 +123,35 @@ export const CheckInView: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [unconfirmedModalCandidate, setUnconfirmedModalCandidate] = useState<CheckinCandidate | null>(null);
 
+  // Tutup suggestions jika klik di luar dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        suggestionsBoxRef.current &&
+        !suggestionsBoxRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const applyCandidate = (candidate: CheckinCandidate, forceFill = false) => {
-    const driverName = candidate.source === 'BOOKING'
-      ? candidate.customer_name || ''
-      : candidate.nama_pengguna_fleet || candidate.nama_pic || candidate.customer_name || '';
-    const driverPhone = candidate.source === 'BOOKING'
-      ? candidate.customer_telepon || ''
-      : candidate.unit_telepon || candidate.customer_telepon || '';
-    const complaint = candidate.source === 'BOOKING'
-      ? candidate.catatan || candidate.keluhan || ''
-      : '';
+    const driverName =
+      candidate.source === 'BOOKING'
+        ? candidate.customer_name || ''
+        : candidate.nama_pengguna_fleet || candidate.nama_pic || candidate.customer_name || '';
+    const driverPhone =
+      candidate.source === 'BOOKING'
+        ? candidate.customer_telepon || ''
+        : candidate.unit_telepon || candidate.customer_telepon || '';
+    const complaint =
+      candidate.source === 'BOOKING'
+        ? candidate.catatan || candidate.keluhan || ''
+        : '';
 
     setNamaPengemudi((prev) => (forceFill ? driverName : prev || driverName));
     setNoTelpPengemudi((prev) => (forceFill ? driverPhone : prev || driverPhone));
@@ -187,55 +197,89 @@ export const CheckInView: React.FC = () => {
     }
   };
 
-  // Sinkronisasi status booking kandidat terkini (hanya jika user SUDAH memilih kandidat)
-  useEffect(() => {
-    if (lookupPlate.length < 3) {
-      selectedCandidateRef.current = null;
-      setSelectedCandidate(null);
-      return;
-    }
+  // Eksekusi pencarian plat nomor saat tombol Cari diklik atau Enter ditekan
+  const executePlateSearch = async (overridePlate?: string) => {
+    const rawTarget = overridePlate !== undefined ? overridePlate : plateInput;
+    const cleanTarget = normalizePlate(rawTarget);
+    setErrorMsg(null);
+    setIsSearching(true);
+    setHasSearched(true);
 
-    // Jika user SUDAH memilih kandidat secara manual atau lewat exact match lengkap, sinkronkan statusnya
-    const currentSelected = selectedCandidateRef.current;
-    if (currentSelected && currentSelected.no_polisi_clean === lookupPlate) {
-      const fresh = candidates.find((item) => candidateKey(item) === candidateKey(currentSelected));
-      if (fresh) {
-        selectedCandidateRef.current = fresh;
-        setSelectedCandidate(fresh);
-        if (fresh.is_confirmed) {
-          setUnconfirmedModalCandidate(null);
+    try {
+      const results = await securityApi.searchCheckinCandidates(cleanTarget);
+      setCandidates(results);
+      setShowSuggestions(true);
+
+      // 1. Cek apakah ada kecocokan exact nopol pada booking/member
+      const exactMatches = results.filter((item) => item.no_polisi_clean === cleanTarget);
+
+      if (exactMatches.length === 1) {
+        // Tepat 1 kandidat cocok persis -> pilih langsung
+        chooseCandidate(exactMatches[0], true);
+        setShowSuggestions(false);
+      } else if (exactMatches.length > 1) {
+        // Ada booking + member -> biarkan user memilih dari dropdown suggestions
+        setShowSuggestions(true);
+      } else if (results.length === 0 && cleanTarget.length >= 3) {
+        // 2. Jika tidak ada di searchCheckinCandidates, cek langsung ke tabel member unit
+        const memberUnits = await securityApi.lookupUnitMember(cleanTarget);
+        if (memberUnits.length > 0) {
+          const m = memberUnits[0];
+          const memberCandidate: CheckinCandidate = {
+            source: 'MEMBER_UNIT',
+            no_polisi: m.no_polisi || cleanTarget,
+            no_polisi_clean: cleanTarget,
+            customer_name: m.nama_perusahaan || m.customer_name || 'Member',
+            nama_perusahaan: m.nama_perusahaan,
+            nama_pengguna_fleet: m.nama_pengguna_fleet || m.nama_supir,
+            unit_telepon: m.no_telepon_supir,
+            merk: m.merk,
+            model: m.model,
+            jenis_armada: m.jenis_armada,
+            has_active_booking: false,
+            status_aktif: true,
+            is_confirmed: true,
+            can_checkin: true,
+            is_within_window: true,
+            is_stale_unconfirmed: false,
+          };
+          setCandidates([memberCandidate]);
+          chooseCandidate(memberCandidate, true);
+          setShowSuggestions(false);
+        } else {
+          // 3. Walk-in umum biasa (tidak ada booking dan bukan member)
+          selectedCandidateRef.current = null;
+          setSelectedCandidate(null);
+          setShowSuggestions(false);
         }
       }
-      return;
+    } catch (err: any) {
+      console.error('Error searching candidates:', err);
+      setErrorMsg('Gagal mencari data plat. Periksa koneksi jaringan.');
+    } finally {
+      setIsSearching(false);
     }
+  };
 
-    // Hanya auto-match jika user mengetik nopol secara LENGKAP persis (exact match)
-    // dan TIDAK otomatis memilih saat nopol baru diketik sebagian (misal baru "BK")
-    const exact = candidates.filter(
-      (item) =>
-        item.no_polisi_clean === lookupPlate &&
-        !(item.source === 'MEMBER_UNIT' && item.has_active_booking)
-    );
+  // Handler saat plat terdeteksi otomatis lewat OCR Scanner Kamera
+  const handleOcrPlateDetected = (detectedPlate: string) => {
+    const formatted = formatPlate(detectedPlate);
+    setPlateInput(formatted);
+    setInputMode('manual');
+    // Eksekusi verifikasi otomatis menggunakan logika sistem
+    executePlateSearch(detectedPlate);
+  };
 
-    if (exact.length === 1 && exact[0].no_polisi_clean === lookupPlate) {
-      chooseCandidate(exact[0], false);
-    } else {
-      selectedCandidateRef.current = null;
-      setSelectedCandidate(null);
-    }
-  }, [candidates, lookupPlate]);
-
+  // Ubah input plat (tidak langsung tembak API tiap ketik huruf)
   const handlePlateInputChange = (value: string) => {
-    // Format plat berspasi otomatis untuk tampilan (misal: BK 1234 ABC)
     const formatted = formatPlate(value);
     setPlateInput(formatted);
     setErrorMsg(null);
-    setShowSuggestions(true);
+    setHasSearched(false);
 
     const currentClean = normalizePlate(formatted);
     const selectedClean = selectedCandidateRef.current?.no_polisi_clean;
 
-    // Jika user mengubah atau menghapus teks nopol sehingga tidak cocok lagi dengan kandidat terpilih:
     if (selectedClean && selectedClean !== currentClean) {
       selectedCandidateRef.current = null;
       setSelectedCandidate(null);
@@ -247,7 +291,7 @@ export const CheckInView: React.FC = () => {
     }
   };
 
-  // Daftar karyawan untuk dropdown PIC (difilter berdasarkan cabang aktif security)
+  // Daftar karyawan untuk dropdown PIC
   useEffect(() => {
     let active = true;
     (async () => {
@@ -269,7 +313,7 @@ export const CheckInView: React.FC = () => {
     };
   }, [kodeCabang]);
 
-  // Status klasifikasi kedatangan
+  // Klasifikasi Status Kedatangan
   const cleanPlate = normalizePlate(plateInput);
   const selectedBooking = selectedCandidate?.source === 'BOOKING' ? selectedCandidate : null;
   const selectedUnit = selectedCandidate?.source === 'MEMBER_UNIT' ? selectedCandidate : null;
@@ -290,20 +334,20 @@ export const CheckInView: React.FC = () => {
   const isWalkInPure = Boolean(
     !selectedBooking &&
     !selectedUnit &&
-    !hasActiveBookingForPlate &&
-    candidates.length === 0
+    !hasActiveBookingForPlate
   );
+
   const bookingVehicle =
     [selectedBooking?.merk, selectedBooking?.model].filter(Boolean).join(' ') ||
     selectedBooking?.jenis_armada ||
     selectedBooking?.jenis_layanan ||
     '';
+
   const memberVehicle =
     [selectedUnit?.merk, selectedUnit?.model].filter(Boolean).join(' ') ||
     selectedUnit?.jenis_armada ||
     '';
 
-  // Nilai PIC dari pilihan dropdown karyawan (menggunakan employeeid untuk relasi di database)
   const selectedEmployee = selectedPicId
     ? employeeList.find(
         (emp) =>
@@ -314,14 +358,12 @@ export const CheckInView: React.FC = () => {
   const effectivePicId = selectedEmployee?.employeeid || (selectedEmployee ? String(selectedEmployee.id) : '');
   const picValue = selectedEmployee?.employeename || '';
 
-  // Opsi PIC: employeeid/id sebagai value relasional, posisi tampil sebagai label di samping nama
   const picOptions: SelectMenuOption[] = employeeList.map((emp) => ({
     value: emp.employeeid || String(emp.id),
     label: emp.employeename,
     hint: emp.positionname || (emp.isserviceadvisor ? 'Service Advisor' : 'Karyawan'),
   }));
 
-  // Status apakah tombol check in bisa ditekan
   const canSubmit = () => {
     if (cleanPlate.length < 3) return false;
     if (namaPengemudi.trim() === '') return false;
@@ -329,7 +371,7 @@ export const CheckInView: React.FC = () => {
     if (tipeKunjungan === 'Lainnya' && customTipeKunjungan.trim() === '') return false;
     if (selectedBooking) return isBookingConfirmed;
     if (selectedUnit) return !selectedUnit.has_active_booking;
-    if (hasActiveBookingForPlate) return false; // wajib pilih booking aktif
+    if (hasActiveBookingForPlate && !selectedBooking) return false;
     return true;
   };
 
@@ -475,6 +517,8 @@ export const CheckInView: React.FC = () => {
     selectedCandidateRef.current = null;
     setSelectedCandidate(null);
     setShowSuggestions(false);
+    setCandidates([]);
+    setHasSearched(false);
     setPhotos(INITIAL_PHOTOS);
   };
 
@@ -505,6 +549,18 @@ export const CheckInView: React.FC = () => {
                 <Hash className="h-3.5 w-3.5" /> No. Tiket
               </dt>
               <dd className="font-mono font-bold text-accent">{successTicket.nomor_tiket}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="flex items-center gap-1.5 text-ink-muted">
+                <Truck className="h-3.5 w-3.5" /> Klasifikasi
+              </dt>
+              <dd className="font-bold text-ink">
+                {successTicket.jenis === 'BOOKING'
+                  ? 'Booking Service'
+                  : successTicket.jenis === 'WALK_IN_MEMBER'
+                  ? 'Walk-In Member Terdaftar'
+                  : 'Walk-In Umum'}
+              </dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="flex items-center gap-1.5 text-ink-muted">
@@ -576,7 +632,6 @@ export const CheckInView: React.FC = () => {
           </div>
         </div>
 
-        {/* Modal Cetak Karcis Tiket via Iframe (Anti Blank) */}
         <CheckinTicketModal
           ticket={successTicket}
           isOpen={isTicketModalOpen}
@@ -590,7 +645,6 @@ export const CheckInView: React.FC = () => {
     );
   }
 
-  // Penjelasan singkat mengapa tombol Check In belum bisa ditekan (murni UI)
   const disabledReason = (() => {
     if (isSubmitting) return null;
     if (cleanPlate.length < 3) return 'Isi nomor polisi terlebih dahulu.';
@@ -630,49 +684,120 @@ export const CheckInView: React.FC = () => {
       )}
 
       <form id="checkin-form" onSubmit={handleSubmitCheckIn} className="space-y-3">
-        {/* Kartu 1: Nomor polisi & status booking */}
+        {/* Kartu 1: Nomor Polisi, Tab Pilihan (Manual vs Scan Kamera), & Pencarian */}
         <section className="space-y-2.5">
           <div className={CARD}>
+            {/* Segmented Tab: Input Manual vs Scan Kamera Plat */}
+            <div className="mb-3 flex rounded-xl border border-border bg-surface-sunken p-1">
+              <button
+                type="button"
+                onClick={() => setInputMode('manual')}
+                className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${
+                  inputMode === 'manual'
+                    ? 'bg-surface-raised text-accent shadow-xs'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Keyboard className="h-3.5 w-3.5" />
+                Input Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setInputMode('camera');
+                  setIsOcrModalOpen(true);
+                }}
+                className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition ${
+                  inputMode === 'camera'
+                    ? 'bg-surface-raised text-accent shadow-xs'
+                    : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                <Scan className="h-3.5 w-3.5" />
+                Scan Kamera Plat (Otomatis)
+              </button>
+            </div>
+
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
               <label htmlFor="checkin-plate" className="text-sm font-bold text-ink">
                 Nomor Polisi <span className="text-status-red">*</span>
               </label>
-              <span className="text-[10px] font-semibold text-ink-subtle">Otomatis cek booking</span>
+              <span className="text-[10px] font-semibold text-ink-subtle">
+                Klik ikon Cari untuk cek Booking / Member
+              </span>
             </div>
 
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-accent" />
-              <input
-                id="checkin-plate"
-                type="text"
-                required
-                autoComplete="off"
-                value={plateInput}
-                onChange={(e) => handlePlateInputChange(e.target.value)}
-                onFocus={() => setShowSuggestions(true)}
-                autoFocus={canAutoFocus}
-                placeholder="BK 1234 ABC"
-                className={FIELD_PLATE}
-              />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                {isSearching ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-accent" />
-                ) : plateInput ? (
+            <div ref={suggestionsBoxRef} className="relative">
+              <div className="relative flex items-center">
+                <input
+                  id="checkin-plate"
+                  type="text"
+                  required
+                  autoComplete="off"
+                  value={plateInput}
+                  onChange={(e) => handlePlateInputChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      executePlateSearch();
+                    }
+                  }}
+                  autoFocus={canAutoFocus}
+                  placeholder="Contoh: BK 1234 ABC"
+                  className={`${FIELD_PLATE} pr-24`}
+                />
+
+                {/* Tombol Aksi di Sisi Kanan Input Form */}
+                <div className="absolute right-2 flex items-center gap-1.5">
+                  {plateInput && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handlePlateInputChange('');
+                        selectedCandidateRef.current = null;
+                        setSelectedCandidate(null);
+                        setCandidates([]);
+                        setHasSearched(false);
+                      }}
+                      title="Hapus nomor polisi"
+                      aria-label="Hapus nomor polisi"
+                      className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-ink-subtle transition hover:bg-surface-sunken hover:text-ink"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {/* Tombol Cari Plat */}
                   <button
                     type="button"
-                    onClick={() => handlePlateInputChange('')}
-                    title="Hapus"
-                    aria-label="Hapus nomor polisi"
-                    className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-ink-subtle transition hover:bg-surface-sunken hover:text-ink"
+                    onClick={() => executePlateSearch()}
+                    disabled={isSearching}
+                    title="Cek kecocokan nomor polisi di database"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-accent px-3 py-2 text-xs font-bold text-accent-on shadow-xs transition hover:bg-accent-hover active:scale-95 disabled:opacity-50"
                   >
-                    <X className="h-4 w-4" />
+                    {isSearching ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Search className="h-3.5 w-3.5" />
+                    )}
+                    <span>Cari</span>
                   </button>
-                ) : null}
+                </div>
               </div>
 
-              {/* Daftar kandidat: booking aktif + unit member terdaftar */}
+              {/* Popover Hasil Pencarian / Suggestions */}
               {showSuggestions && candidates.length > 0 && (
                 <div className="animate-popover-in absolute left-0 right-0 z-20 mt-2 max-h-72 space-y-2 overflow-y-auto rounded-2xl border border-border bg-surface-raised p-2 shadow-pop">
+                  <div className="flex items-center justify-between px-2 py-1 text-[10px] font-bold text-ink-muted">
+                    <span>Hasil Pencarian ({candidates.length})</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSuggestions(false)}
+                      className="text-ink-subtle hover:text-ink cursor-pointer"
+                    >
+                      Tutup
+                    </button>
+                  </div>
                   {candidates.map((item) => {
                     const disabled = item.source === 'MEMBER_UNIT' && item.has_active_booking;
                     const selected = Boolean(
@@ -703,7 +828,7 @@ export const CheckInView: React.FC = () => {
                             </span>
                             <span
                               className={`${CHIP_BASE} ${
-                                item.source === 'BOOKING' ? CHIP_TONE.blue : CHIP_TONE.neutral
+                                item.source === 'BOOKING' ? CHIP_TONE.green : CHIP_TONE.blue
                               }`}
                             >
                               {item.source === 'BOOKING' ? 'Booking' : 'Member'}
@@ -736,7 +861,7 @@ export const CheckInView: React.FC = () => {
                           {item.source === 'MEMBER_UNIT'
                             ? item.status_aktif === false
                               ? 'Nonaktif'
-                              : 'Walk-In'
+                              : 'Member Terdaftar'
                             : item.is_confirmed
                             ? 'Confirmed'
                             : item.is_stale_unconfirmed
@@ -750,12 +875,12 @@ export const CheckInView: React.FC = () => {
               )}
             </div>
 
-            {/* Status singkat */}
+            {/* Status Garis Klasifikasi Kedatangan */}
             {cleanPlate.length >= 3 && (
-              <div className="space-y-2">
+              <div className="mt-2.5 space-y-2">
                 {isBookingConfirmed && selectedBooking && (
                   <StatusLine tone="green" icon={CheckCircle2}>
-                    <strong className="font-semibold">Booking terkonfirmasi</strong> •{' '}
+                    <strong className="font-semibold">Booking Terkonfirmasi</strong> •{' '}
                     {selectedBooking.customer_name || 'Pelanggan'}
                     {bookingVehicle ? ` • ${bookingVehicle}` : ''} •{' '}
                     {selectedBooking.tanggal_booking || '-'} {selectedBooking.jam_booking || ''}
@@ -767,21 +892,26 @@ export const CheckInView: React.FC = () => {
                     icon={AlertTriangle}
                   >
                     {isBookingStaleUnconfirmed
-                      ? 'Booking lewat H-1 dan belum dikonfirmasi. Hubungi admin bengkel.'
-                      : 'Booking belum dikonfirmasi. Hubungi admin bengkel dulu.'}
+                      ? 'Booking lewat H-1 dan belum dikonfirmasi admin. Hubungi admin bengkel.'
+                      : 'Booking belum dikonfirmasi admin. Hubungi admin bengkel terlebih dahulu.'}
                   </StatusLine>
                 )}
                 {!selectedCandidate && hasActiveBookingForPlate && (
                   <StatusLine tone="amber" icon={AlertTriangle}>
-                    Ada booking aktif — pilih data booking di daftar atas.
+                    Ada booking aktif untuk nopol ini — klik &quot;Cari&quot; dan pilih data booking di atas.
                   </StatusLine>
                 )}
                 {isWalkInWithUnit && selectedUnit && (
                   <StatusLine tone="blue" icon={Truck}>
-                    <strong className="font-semibold">Walk-in member</strong>{' '}
+                    <strong className="font-semibold">Armada Member Terdaftar</strong>{' '}
                     • {selectedUnit.nama_perusahaan || selectedUnit.nama_pengguna_fleet || 'Member'}
                     {memberVehicle ? ` • ${memberVehicle}` : ''}
                     {selectedUnit.status_aktif === false ? ' (unit nonaktif)' : ''}
+                  </StatusLine>
+                )}
+                {isWalkInPure && hasSearched && !hasActiveBookingForPlate && (
+                  <StatusLine tone="slate" icon={Truck}>
+                    <strong className="font-semibold">Walk-In Umum</strong> • Kendaraan tidak memiliki reservasi booking dan belum terdaftar sebagai armada member.
                   </StatusLine>
                 )}
               </div>
@@ -789,7 +919,7 @@ export const CheckInView: React.FC = () => {
           </div>
         </section>
 
-        {/* Kartu 2: Data kunjungan */}
+        {/* Kartu 2: Data Kunjungan */}
         <section className={CARD}>
           <h3 className="mb-2.5 text-xs font-bold uppercase tracking-[0.14em] text-ink-subtle">
             Data Kunjungan
@@ -888,7 +1018,7 @@ export const CheckInView: React.FC = () => {
                 type="text"
                 value={keluhan}
                 onChange={(e) => setKeluhan(e.target.value)}
-                placeholder="Keperluan kunjungan"
+                placeholder="Keperluan kunjungan / keluhan kendaraan"
                 className={FIELD_CLASS}
               />
             </div>
@@ -926,12 +1056,12 @@ export const CheckInView: React.FC = () => {
           </div>
         </section>
 
-        {/* Kartu 3: Foto 4 sudut */}
+        {/* Kartu 3: Foto Multi-Angle Kendaraan (Tanpa tombol Upload File) */}
         <section className={CARD}>
           <MultiCameraSection photos={photos} onChange={setPhotos} eventTitle="Kendaraan" />
         </section>
 
-        {/* Aksi utama: slot BottomChrome (mobile) / sticky bawah konten (desktop) */}
+        {/* Aksi Utama */}
         <PageAction>
           {!canSubmit() && !isSubmitting && disabledReason && (
             <p className="pb-1.5 text-center text-[11px] font-medium leading-none text-ink-muted">
@@ -959,6 +1089,16 @@ export const CheckInView: React.FC = () => {
           </button>
         </PageAction>
       </form>
+
+      {/* MODAL OCR SCANNER KAMERA OTOMATIS */}
+      <PlateOcrScannerModal
+        isOpen={isOcrModalOpen}
+        onClose={() => {
+          setIsOcrModalOpen(false);
+          setInputMode('manual');
+        }}
+        onDetected={handleOcrPlateDetected}
+      />
 
       {/* MODAL POPUP: Alert Booking Belum Dikonfirmasi */}
       {unconfirmedModalCandidate &&

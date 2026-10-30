@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Camera, X, RefreshCw, Check, AlertCircle } from 'lucide-react';
+import { Camera, X, RefreshCw, Check, AlertCircle, Smartphone } from 'lucide-react';
 
 interface CameraCaptureModalProps {
   isOpen: boolean;
@@ -17,9 +17,12 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const nativeInputRef = useRef<HTMLInputElement>(null);
+
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [hasMediaDevices, setHasMediaDevices] = useState(true);
 
   // Fungsi mematikan kamera secara bersih
   const stopCameraHardware = () => {
@@ -44,7 +47,7 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
             t.stop();
             t.enabled = false;
           });
-        } catch (e) {
+        } catch {
           /* ignore */
         }
       }
@@ -58,44 +61,62 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
 
     // Cek ketersediaan mediaDevices pada peramban
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setErrorMsg('Peramban atau koneksi HTTP tidak mendukung MediaDevices API. Gunakan peramban modern atau akses via HTTPS / localhost.');
+      setHasMediaDevices(false);
+      setErrorMsg(
+        'Kamera langsung peramban memerlukan koneksi HTTPS / localhost atau laptop Anda membatasi akses webcam via HTTP. Anda tetap bisa mengambil foto menggunakan kamera perangkat di bawah ini.'
+      );
       return;
     }
+    setHasMediaDevices(true);
 
     try {
-      // 1. Coba dengan constraint ideal
+      // 1. Coba dengan constraint ideal (non-strict agar tidak overconstraint)
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode },
+        video: { facingMode: { ideal: mode } },
         audio: false,
       });
       streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        videoRef.current.play().catch(() => {});
+        await videoRef.current.play().catch(() => {});
       }
     } catch (err: any) {
-      console.warn('Camera mode constraint failed, trying basic video fallback:', err);
+      console.warn('Camera mode constraint failed, trying user camera fallback:', err);
       try {
-        // 2. Fallback: tanpa constraint facingMode sama sekali
+        // 2. Fallback: kamera depan / user (khas integrated webcam laptop)
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: { facingMode: 'user' },
           audio: false,
         });
         streamRef.current = fallbackStream;
         if (videoRef.current) {
           videoRef.current.srcObject = fallbackStream;
-          videoRef.current.play().catch(() => {});
+          await videoRef.current.play().catch(() => {});
         }
       } catch (fallbackErr: any) {
-        console.error('All camera attempts failed:', fallbackErr);
-        if (fallbackErr.name === 'NotAllowedError' || fallbackErr.name === 'PermissionDeniedError') {
-          setErrorMsg('Izin akses kamera diblokir oleh browser. Klik ikon gembok / kamera di address bar browser untuk mengizinkan kamera.');
-        } else if (fallbackErr.name === 'NotFoundError' || fallbackErr.name === 'DevicesNotFoundError') {
-          setErrorMsg('Perangkat kamera (webcam) tidak ditemukan di laptop/komputer ini.');
-        } else if (fallbackErr.name === 'NotReadableError' || fallbackErr.name === 'TrackStartError') {
-          setErrorMsg('Kamera sedang digunakan oleh aplikasi lain (Zoom, Teams, dll). Tutup aplikasi tersebut dan coba lagi.');
-        } else {
-          setErrorMsg('Gagal mengakses kamera: ' + (fallbackErr.message || 'Periksa izin kamera pada browser Anda.'));
+        console.warn('User camera fallback failed, trying video: true fallback:', fallbackErr);
+        try {
+          // 3. Fallback: tanpa constraint apa pun
+          const genericStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+          streamRef.current = genericStream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = genericStream;
+            await videoRef.current.play().catch(() => {});
+          }
+        } catch (finalErr: any) {
+          console.error('All camera attempts failed:', finalErr);
+          if (finalErr.name === 'NotAllowedError' || finalErr.name === 'PermissionDeniedError') {
+            setErrorMsg('Izin akses kamera diblokir browser. Klik ikon gembok / kamera di address bar browser untuk mengizinkan kamera.');
+          } else if (finalErr.name === 'NotFoundError' || finalErr.name === 'DevicesNotFoundError') {
+            setErrorMsg('Perangkat kamera (webcam) tidak ditemukan di laptop/komputer ini.');
+          } else if (finalErr.name === 'NotReadableError' || finalErr.name === 'TrackStartError') {
+            setErrorMsg('Kamera sedang digunakan aplikasi lain (Zoom, Teams, dll). Tutup aplikasi tersebut dan coba lagi.');
+          } else {
+            setErrorMsg('Gagal mengakses kamera: ' + (finalErr.message || 'Periksa izin kamera pada browser Anda.'));
+          }
         }
       }
     }
@@ -153,10 +174,30 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
     startCamera(facingMode);
   };
 
+  // Tangani jepretan kamera perangkat fallback
+  const handleNativeDeviceCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setCapturedPhoto(base64);
+    };
+    reader.readAsDataURL(file);
+
+    if (nativeInputRef.current) {
+      nativeInputRef.current.value = '';
+    }
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Ambil Foto Kendaraan"
       className="fixed inset-0 z-[9999] flex items-stretch justify-center bg-black/90 backdrop-blur-sm sm:items-center sm:bg-overlay sm:p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) handleClose();
@@ -166,6 +207,16 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
         className="relative flex h-full w-full flex-col overflow-hidden bg-surface-raised sm:h-auto sm:max-h-[92vh] sm:max-w-lg sm:rounded-2xl sm:border sm:border-border sm:shadow-pop"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Hidden Fallback Camera Shutter Input */}
+        <input
+          ref={nativeInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={handleNativeDeviceCapture}
+        />
+
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface-raised px-4 py-3 safe-top">
           <div className="flex min-w-0 items-center gap-2">
@@ -181,19 +232,32 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
           </button>
         </div>
 
-        {/* Viewport Kamera (fullscreen di mobile) */}
+        {/* Viewport Kamera */}
         <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black sm:aspect-video sm:flex-none">
-          {errorMsg ? (
-            <div className="m-4 max-w-sm space-y-2 rounded-2xl border border-border bg-surface-raised p-5 text-center">
-              <AlertCircle className="mx-auto h-8 w-8 text-status-red" />
+          {errorMsg && !capturedPhoto ? (
+            <div className="m-4 max-w-sm space-y-3 rounded-2xl border border-border bg-surface-raised p-5 text-center">
+              <AlertCircle className="mx-auto h-8 w-8 text-status-amber" />
               <p className="text-xs font-semibold leading-relaxed text-ink sm:text-sm">{errorMsg}</p>
-              <button
-                type="button"
-                onClick={() => startCamera(facingMode)}
-                className="mt-1 cursor-pointer rounded-xl border border-border-strong bg-surface-raised px-4 py-2.5 text-xs font-bold text-ink transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-              >
-                Coba Lagi
-              </button>
+              
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => nativeInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-xs font-bold text-accent-on shadow-card transition hover:bg-accent-hover cursor-pointer"
+                >
+                  <Smartphone className="h-4 w-4" />
+                  Buka Kamera Perangkat
+                </button>
+                {hasMediaDevices && (
+                  <button
+                    type="button"
+                    onClick={() => startCamera(facingMode)}
+                    className="cursor-pointer rounded-xl border border-border-strong bg-surface-raised px-4 py-2 text-xs font-bold text-ink transition hover:bg-surface-sunken"
+                  >
+                    Coba Lagi
+                  </button>
+                )}
+              </div>
             </div>
           ) : capturedPhoto ? (
             <img src={capturedPhoto} alt="Captured preview" className="h-full w-full object-cover" />
@@ -235,14 +299,15 @@ export const CameraCaptureModal: React.FC<CameraCaptureModalProps> = ({
               <button
                 type="button"
                 onClick={switchCamera}
-                className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border-strong bg-surface-raised text-ink transition hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-95"
+                disabled={Boolean(errorMsg)}
+                className="flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border-strong bg-surface-raised text-ink transition hover:bg-surface-sunken disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-95"
                 title="Balik kamera"
                 aria-label="Balik kamera"
               >
                 <RefreshCw className="h-5 w-5" />
               </button>
 
-              {/* Shutter besar di tengah, aman untuk satu tangan */}
+              {/* Shutter besar di tengah */}
               <button
                 type="button"
                 onClick={() => {
