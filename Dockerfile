@@ -1,7 +1,7 @@
 # ==========================================
 # STAGE 1: Build Frontend Assets
 # ==========================================
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -12,19 +12,20 @@ COPY . .
 RUN npm run build
 
 # ==========================================
-# STAGE 2: Production Nginx Server
+# STAGE 2: Production Server + C++ ONNX ANPR Engine
 # ==========================================
-FROM nginx:alpine
+FROM node:20-slim
 
-# Remove default nginx config & html
-RUN rm -rf /etc/nginx/conf.d/default.conf /usr/share/nginx/html/*
+WORKDIR /app
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Install only lightweight production runtime for C++ ONNX + JPEG decoding
+RUN npm init -y && npm install onnxruntime-node jpeg-js && npm cache clean --force
 
-# Copy compiled assets from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy compiled frontend assets and ANPR server + models
+COPY --from=builder /app/dist ./dist
+COPY server ./server
 
+ENV PORT=80
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server/anpr-server.mjs"]

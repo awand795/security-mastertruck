@@ -12,11 +12,6 @@ import {
   Keyboard,
   RotateCcw,
 } from 'lucide-react';
-import * as ort from 'onnxruntime-web/wasm';
-
-// Konfigurasi lokasi file WebAssembly ONNX Runtime di folder public/models/
-ort.env.wasm.wasmPaths = '/models/';
-ort.env.wasm.numThreads = 1;
 
 interface PlateOcrScannerModalProps {
   isOpen: boolean;
@@ -32,106 +27,20 @@ interface DetectedBoxNormalized {
   conf: number;
 }
 
-// Cache session ONNX di memori + Persistent Browser CacheStorage agar buka pertama maupun berikutnya instan!
-let cachedDetSession: ort.InferenceSession | null = null;
-let cachedRecSession: ort.InferenceSession | null = null;
-let sessionLoadPromise: Promise<{
-  det: ort.InferenceSession;
-  rec: ort.InferenceSession;
-}> | null = null;
-
-const MODEL_CACHE_NAME = 'kim3-anpr-models-v1';
-
-const fetchCachedModelBuffer = async (url: string): Promise<Uint8Array> => {
-  if (typeof window !== 'undefined' && 'caches' in window) {
-    try {
-      const cache = await window.caches.open(MODEL_CACHE_NAME);
-      let response = await cache.match(url);
-      if (!response) {
-        response = await fetch(url, { cache: 'force-cache' });
-        if (response.ok) {
-          await cache.put(url, response.clone());
-        }
-      }
-      if (response && response.ok) {
-        const buf = await response.arrayBuffer();
-        return new Uint8Array(buf);
-      }
-    } catch {
-      /* fallback ke fetch biasa */
-    }
-  }
-  const fallbackRes = await fetch(url, { cache: 'force-cache' });
-  const buf = await fallbackRes.arrayBuffer();
-  return new Uint8Array(buf);
-};
-
-export const ensureAnprSessions = async () => {
-  if (cachedDetSession && cachedRecSession) {
-    return { det: cachedDetSession, rec: cachedRecSession };
-  }
-  if (!sessionLoadPromise) {
-    sessionLoadPromise = (async () => {
-      const [detBuf, recBuf] = await Promise.all([
-        fetchCachedModelBuffer('/models/plate_det_yolov8n.onnx'),
-        fetchCachedModelBuffer('/models/plate_rec_svtr.onnx'),
-      ]);
-      const [det, rec] = await Promise.all([
-        ort.InferenceSession.create(detBuf, {
-          executionProviders: ['wasm'],
-        }),
-        ort.InferenceSession.create(recBuf, {
-          executionProviders: ['wasm'],
-        }),
-      ]);
-      cachedDetSession = det;
-      cachedRecSession = rec;
-      return { det, rec };
-    })().catch((err) => {
-      sessionLoadPromise = null;
-      throw err;
-    });
-  }
-  return sessionLoadPromise;
-};
-
-// Preload otomatis di background begitu halaman Pos Security dibuka (sebelum tombol kamera diklik)
-if (typeof window !== 'undefined') {
-  setTimeout(() => {
-    ensureAnprSessions().catch(() => {});
-  }, 300);
-}
-
-/**
- * Kamus karakter model SVTR26-Tiny (CTC index 0 = blank, 1..37 = 0-9 & A-Z)
- */
-const SVTR_CHARS = [
-  'blank',
-  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-  'A', 'B', 'C', 'D', 'D', 'E', 'F', 'G', 'H', 'I',
-  'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
-  'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-];
-
 /**
  * Daftar kode wilayah plat nomor resmi di Indonesia (Sumatera, Jawa, Kalimantan, Sulawesi, dll.)
  */
 const VALID_INDONESIAN_REGIONS = new Set([
-  // Sumatera (Medan/Sumut = BK, BB; Aceh = BL; Riau = BM; Sumbar = BA; Kepri = BP; Sumsel = BG; Babel = BN; Bengkulu = BD; Lampung = BE; Jambi = BH)
   'BK', 'BB', 'BL', 'BM', 'BA', 'BP', 'BG', 'BN', 'BD', 'BE', 'BH',
-  // Jawa
   'A', 'B', 'D', 'E', 'F', 'T', 'Z', 'G', 'H', 'K', 'R', 'AA', 'AB', 'AD',
   'L', 'M', 'N', 'P', 'S', 'W', 'AE', 'AG',
-  // Bali & Nusa Tenggara
   'DK', 'DR', 'EA', 'DH', 'EB', 'ED',
-  // Kalimantan
   'KB', 'KH', 'DA', 'KT', 'KU',
-  // Sulawesi, Maluku, Papua
   'DB', 'DL', 'DM', 'DN', 'DT', 'DD', 'DC', 'DP', 'DW', 'DE', 'DG', 'PA', 'PB',
 ]);
 
 /**
- * Parser cerdas plat nomor Indonesia dari output CTC SVTR26-Tiny (contoh: "BI234WLG" -> "B 1234 WLG", "BK8210GI" -> "BK 8210 GI").
+ * Parser cerdas plat nomor Indonesia (untuk fallback ketik manual).
  */
 export const extractIndonesianPlate = (rawText: string): string | null => {
   if (!rawText) return null;
@@ -139,35 +48,27 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
   const clean = rawText.toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (clean.length < 4 || clean.length > 10) return null;
 
-  // Coba dengan berbagai offset awal (0 atau 1 jika ada noise baut di depan)
   for (const startOffset of [0, 1]) {
     const sub = clean.slice(startOffset);
     if (sub.length < 4) continue;
 
-    // Prioritaskan kode wilayah 2 huruf (BK, BB, BL, BM, dll.) lalu 1 huruf (B, D, F, L, dll.)
     for (const prefixLen of [2, 1]) {
       if (sub.length <= prefixLen + 1) continue;
       const rawPrefix = sub.slice(0, prefixLen);
       if (!VALID_INDONESIAN_REGIONS.has(rawPrefix)) continue;
 
       const rest = sub.slice(prefixLen);
-      // Blok tengah: 1-4 angka (termasuk 'I'->'1', 'O'/'D'/'Q'->'0', 'B'->'8' jika menempel pada angka)
-      // Blok akhir: 1-3 huruf seri (termasuk '0'->'O', '1'->'I', '8'->'B')
       const match = rest.match(/^([0-9OIBDQ]{1,4})([A-Z018]{1,3})/);
       if (!match) continue;
 
-      const rawDigits = match[1];
-      const rawSuffix = match[2];
-
-      const digits = rawDigits
+      const digits = match[1]
         .replace(/[ODQ]/g, '0')
         .replace(/I/g, '1')
         .replace(/B/g, '8');
 
-      // Wajib memiliki setidaknya 1 digit angka asli atau panjang >= 2 digit dan tidak diawali 0
       if (!/^[1-9][0-9]{0,3}$/.test(digits)) continue;
 
-      const suffix = rawSuffix
+      const suffix = match[2]
         .replace(/0/g, 'O')
         .replace(/1/g, 'I')
         .replace(/8/g, 'B');
@@ -224,50 +125,6 @@ const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
   return null;
 };
 
-/**
- * Decode output tensor SVTR26-Tiny [1, 32, 38] menggunakan algoritma CTC Greedy + Softmax Probability
- */
-const decodeSvtrCtcOutput = (logits: Float32Array): { text: string; confidence: number } => {
-  const timeSteps = 32;
-  const numClasses = 38;
-  let text = '';
-  let prevIdx = 0;
-  const charProbs: number[] = [];
-
-  for (let t = 0; t < timeSteps; t++) {
-    const offset = t * numClasses;
-    let maxLogit = -1e9;
-    let maxIdx = 0;
-
-    for (let c = 0; c < numClasses; c++) {
-      const val = logits[offset + c];
-      if (val > maxLogit) {
-        maxLogit = val;
-        maxIdx = c;
-      }
-    }
-
-    if (maxIdx !== 0 && maxIdx !== prevIdx) {
-      // Hitung softmax probability untuk karakter terpilih
-      let sumExp = 0;
-      for (let c = 0; c < numClasses; c++) {
-        sumExp += Math.exp(logits[offset + c] - maxLogit);
-      }
-      const prob = 1 / sumExp;
-      text += SVTR_CHARS[maxIdx] || '';
-      charProbs.push(prob);
-    }
-    prevIdx = maxIdx;
-  }
-
-  const avgConf =
-    charProbs.length > 0
-      ? charProbs.reduce((acc, v) => acc + v, 0) / charProbs.length
-      : 0;
-
-  return { text, confidence: avgConf };
-};
-
 const COUNTDOWN_DURATION_MS = 500;
 
 export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
@@ -279,18 +136,13 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const isScanningRef = useRef<boolean>(false);
   const isLockedPreviewRef = useRef<boolean>(false);
-
-  const detCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const recCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const snapCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const recentCandidatesRef = useRef<Array<{ plate: string; confidence: number; time: number }>>([]);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [isModelReady, setIsModelReady] = useState(false);
-  const [statusText, setStatusText] = useState('Memuat model AI YOLOv8-Plate + SVTR...');
   const [detectedPlate, setDetectedPlate] = useState<string | null>(null);
   const [candidateHint, setCandidateHint] = useState<string | null>(null);
   const [trackedBox, setTrackedBox] = useState<DetectedBoxNormalized | null>(null);
@@ -347,34 +199,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     }
   };
 
-  // 2. Load Model Deep Learning ANPR (YOLOv8n-Efficient + SVTR26-Tiny)
-  useEffect(() => {
-    let isCancelled = false;
-
-    if (isOpen) {
-      setStatusText('Memuat model AI YOLOv8-Plate + SVTR...');
-      ensureAnprSessions()
-        .then(() => {
-          if (!isCancelled) {
-            setIsModelReady(true);
-            setStatusText('AI ANPR Aktif — Arahkan ke plat nomor (jauh/dekat otomatis terdeteksi)');
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to load ONNX ANPR models:', err);
-          if (!isCancelled) {
-            setStatusText('Gagal memuat model AI, gunakan tombol Manual');
-          }
-        });
-    }
-
-    return () => {
-      isCancelled = true;
-      clearPreviewTimers();
-    };
-  }, [isOpen]);
-
-  // 3. Start Camera Hardware
+  // 2. Start Camera Hardware
   const startCamera = async (mode: 'environment' | 'user') => {
     stopCameraHardware();
     setErrorMsg(null);
@@ -431,192 +256,53 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   };
 
   /**
-   * 4. Jalankan YOLOv8n-Efficient (416x416) untuk mencari koordinat kotak plat nomor di seluruh layar kamera
+   * 3. Tangkap frame kamera sesuai area layar `object-cover` sebagai JPEG ringan (~20 KB)
+   *    untuk dikirim ke Server AI ANPR (`POST /anpr/detect`).
    */
-  const detectPlateBoxWithYolo = async (
-    video: HTMLVideoElement,
-    visibleX: number,
-    visibleY: number,
-    visibleW: number,
-    visibleH: number
-  ): Promise<{
-    cropX: number;
-    cropY: number;
-    cropW: number;
-    cropH: number;
-    conf: number;
-    boxNorm: DetectedBoxNormalized;
-  } | null> => {
-    if (!cachedDetSession) return null;
+  const captureVisibleFrameBase64 = (): string | null => {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
 
-    if (!detCanvasRef.current) {
-      detCanvasRef.current = document.createElement('canvas');
+    if (!frameCanvasRef.current) {
+      frameCanvasRef.current = document.createElement('canvas');
     }
-    const canvas = detCanvasRef.current;
-    const size = 416;
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const canvas = frameCanvasRef.current;
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const cw = video.clientWidth || vw;
+    const ch = video.clientHeight || vh;
+
+    const videoAspect = vw / vh;
+    const containerAspect = cw / ch;
+
+    let visibleX = 0;
+    let visibleY = 0;
+    let visibleW = vw;
+    let visibleH = vh;
+
+    if (videoAspect > containerAspect) {
+      visibleW = vh * containerAspect;
+      visibleX = (vw - visibleW) / 2;
+    } else {
+      visibleH = vw / containerAspect;
+      visibleY = (vh - visibleH) / 2;
+    }
+
+    const targetW = 560;
+    const targetH = Math.max(320, Math.round((visibleH / visibleW) * targetW));
+    canvas.width = targetW;
+    canvas.height = targetH;
+
+    const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
-    // Letterbox resize area visible video ke 416x416
-    const scale = Math.min(size / visibleW, size / visibleH);
-    const nw = Math.round(visibleW * scale);
-    const nh = Math.round(visibleH * scale);
-    const padX = Math.floor((size - nw) / 2);
-    const padY = Math.floor((size - nh) / 2);
-
-    ctx.fillStyle = 'rgb(114, 114, 114)';
-    ctx.fillRect(0, 0, size, size);
-    ctx.drawImage(video, visibleX, visibleY, visibleW, visibleH, padX, padY, nw, nh);
-
-    const imgData = ctx.getImageData(0, 0, size, size).data;
-    const floatData = new Float32Array(3 * size * size);
-    const planeSize = size * size;
-
-    for (let i = 0; i < planeSize; i++) {
-      const idx = i * 4;
-      floatData[i] = imgData[idx] / 255.0; // R
-      floatData[planeSize + i] = imgData[idx + 1] / 255.0; // G
-      floatData[2 * planeSize + i] = imgData[idx + 2] / 255.0; // B
-    }
-
-    const inputTensor = new ort.Tensor('float32', floatData, [1, 3, size, size]);
-    const outMap = await cachedDetSession.run({ images: inputTensor });
-    const outData = outMap.output0.data as Float32Array;
-    const numAnchors = 3549;
-
-    let bestConf = 0;
-    let bestAnchor = -1;
-
-    for (let i = 0; i < numAnchors; i++) {
-      const conf = outData[4 * numAnchors + i];
-      if (conf > bestConf) {
-        bestConf = conf;
-        bestAnchor = i;
-      }
-    }
-
-    if (bestAnchor < 0 || bestConf < 0.22) {
+    ctx.drawImage(video, visibleX, visibleY, visibleW, visibleH, 0, 0, targetW, targetH);
+    try {
+      return canvas.toDataURL('image/jpeg', 0.82);
+    } catch {
       return null;
     }
-
-    const cx = outData[0 * numAnchors + bestAnchor];
-    const cy = outData[1 * numAnchors + bestAnchor];
-    const w = outData[2 * numAnchors + bestAnchor];
-    const h = outData[3 * numAnchors + bestAnchor];
-
-    // Konversi kembali ke koordinat di dalam area visible video
-    const relX1 = Math.max(0, (cx - w / 2 - padX) / scale);
-    const relY1 = Math.max(0, (cy - h / 2 - padY) / scale);
-    const relX2 = Math.min(visibleW, (cx + w / 2 - padX) / scale);
-    const relY2 = Math.min(visibleH, (cy + h / 2 - padY) / scale);
-
-    const cropW = Math.round(relX2 - relX1);
-    const cropH = Math.round(relY2 - relY1);
-    if (cropW < 24 || cropH < 10) return null;
-
-    const cropX = Math.round(visibleX + relX1);
-    const cropY = Math.round(visibleY + relY1);
-
-    return {
-      cropX,
-      cropY,
-      cropW,
-      cropH,
-      conf: bestConf,
-      boxNorm: {
-        leftPct: Math.max(2, Math.min(95, (relX1 / visibleW) * 100)),
-        topPct: Math.max(2, Math.min(95, (relY1 / visibleH) * 100)),
-        widthPct: Math.max(8, Math.min(96, (cropW / visibleW) * 100)),
-        heightPct: Math.max(5, Math.min(80, (cropH / visibleH) * 100)),
-        conf: bestConf,
-      },
-    };
-  };
-
-  /**
-   * 5. Jalankan SVTR26-Tiny (128x32) untuk membaca karakter di dalam kotak plat yang ditemukan YOLOv8
-   */
-  const recognizePlateCropWithSvtr = async (
-    video: HTMLVideoElement,
-    cropX: number,
-    cropY: number,
-    cropW: number,
-    cropH: number
-  ): Promise<{ rawText: string; plate: string | null; confidence: number; snapshotUrl: string }> => {
-    if (!cachedRecSession) {
-      return { rawText: '', plate: null, confidence: 0, snapshotUrl: '' };
-    }
-
-    if (!recCanvasRef.current) {
-      recCanvasRef.current = document.createElement('canvas');
-    }
-    if (!snapCanvasRef.current) {
-      snapCanvasRef.current = document.createElement('canvas');
-    }
-
-    // Simpan snapshot tajam untuk preview
-    const snapCanvas = snapCanvasRef.current;
-    snapCanvas.width = Math.max(240, cropW);
-    snapCanvas.height = Math.max(80, cropH);
-    const snapCtx = snapCanvas.getContext('2d');
-    let snapshotUrl = '';
-    if (snapCtx) {
-      snapCtx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, snapCanvas.width, snapCanvas.height);
-      try {
-        snapshotUrl = snapCanvas.toDataURL('image/jpeg', 0.9);
-      } catch {
-        /* ignore */
-      }
-    }
-
-    const recW = 128;
-    const recH = 32;
-    const recCanvas = recCanvasRef.current;
-    recCanvas.width = recW;
-    recCanvas.height = recH;
-    const recCtx = recCanvas.getContext('2d', { willReadFrequently: true });
-    if (!recCtx) {
-      return { rawText: '', plate: null, confidence: 0, snapshotUrl };
-    }
-
-    // Coba baca tinggi penuh (1.0) dan tinggi fokus baris utama (0.85 tanpa baris pajak)
-    for (const hRatio of [1.0, 0.85]) {
-      const effectiveH = Math.max(10, Math.round(cropH * hRatio));
-      recCtx.drawImage(video, cropX, cropY, cropW, effectiveH, 0, 0, recW, recH);
-
-      const imgData = recCtx.getImageData(0, 0, recW, recH).data;
-      const planeSize = recW * recH;
-      const floatData = new Float32Array(3 * planeSize);
-
-      for (let i = 0; i < planeSize; i++) {
-        const idx = i * 4;
-        floatData[i] = (imgData[idx] / 255.0 - 0.5) / 0.5; // R
-        floatData[planeSize + i] = (imgData[idx + 1] / 255.0 - 0.5) / 0.5; // G
-        floatData[2 * planeSize + i] = (imgData[idx + 2] / 255.0 - 0.5) / 0.5; // B
-      }
-
-      const inputTensor = new ort.Tensor('float32', floatData, [1, 3, recH, recW]);
-      const outMap = await cachedRecSession.run({ input: inputTensor });
-      const logits = outMap.output.data as Float32Array;
-
-      const { text, confidence } = decodeSvtrCtcOutput(logits);
-      const parsedPlate = extractIndonesianPlate(text);
-      if (parsedPlate) {
-        return {
-          rawText: text,
-          plate: parsedPlate,
-          confidence,
-          snapshotUrl,
-        };
-      }
-      if (hRatio === 1.0 && text) {
-        setRawOcrPreview(text);
-      }
-    }
-
-    return { rawText: '', plate: null, confidence: 0, snapshotUrl };
   };
 
   /**
@@ -676,11 +362,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     onClose();
   };
 
-  /**
-   * Evaluasi hasil bacaan SVTR26:
-   * - Jika confidence tinggi (>= 0.82) dari deteksi kotak YOLOv8, langsung kunci!
-   * - Atau jika cocok/mirip dengan bacaan sebelumnya dalam 3.5 detik terakhir, langsung kunci!
-   */
   const registerCandidateHit = (
     plate: string,
     confidence: number,
@@ -690,14 +371,14 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     const now = Date.now();
     const recent = recentCandidatesRef.current.filter((item) => now - item.time < 3500);
 
-    // 1. Jika ditemukan langsung oleh YOLOv8-Plate Detector dengan confidence SVTR tinggi (>= 0.84), langsung jepret!
-    if (isFromYoloBox && confidence >= 0.84) {
+    // 1. Jika ditemukan langsung oleh YOLOv8-Plate Detector di server dengan confidence tinggi (>= 0.82), langsung jepret!
+    if (isFromYoloBox && confidence >= 0.82) {
       recentCandidatesRef.current = [];
       startPreviewAndAutoSnap(plate, snapshotUrl);
       return true;
     }
 
-    // 2. Cek apakah cocok atau beda tipis 'L' vs 'I' dengan frame sebelumnya
+    // 2. Cek konsensus 2 frame atau resolusi 'L' vs 'I'
     for (const prev of recent) {
       const merged = mergeSimilarPlates(prev.plate, plate);
       if (merged) {
@@ -713,9 +394,9 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     return false;
   };
 
-  // 6. Loop Real-Time YOLOv8 + SVTR26 ANPR
+  // 4. Loop Kontinu Server-Side AI ANPR (Instan 0 Detik di Semua Device Tanpa Download Model!)
   useEffect(() => {
-    if (!isOpen || !isModelReady || manualMode) return;
+    if (!isOpen || manualMode) return;
 
     let timerId: ReturnType<typeof setTimeout> | null = null;
     let isCancelled = false;
@@ -727,8 +408,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       if (
         isLockedPreviewRef.current ||
         !isScanningRef.current ||
-        !cachedDetSession ||
-        !cachedRecSession ||
         !video ||
         video.readyState < 2 ||
         !video.videoWidth ||
@@ -738,87 +417,41 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
         return;
       }
 
+      const frameDataUrl = captureVisibleFrameBase64();
+      if (!frameDataUrl) {
+        timerId = setTimeout(processNextFrame, 120);
+        return;
+      }
+
       setIsProcessingFrame(true);
 
       try {
-        const vw = video.videoWidth;
-        const vh = video.videoHeight;
-        const cw = video.clientWidth || vw;
-        const ch = video.clientHeight || vh;
+        const res = await fetch('/anpr/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: frameDataUrl }),
+        });
 
-        const videoAspect = vw / vh;
-        const containerAspect = cw / ch;
+        if (res.ok && !isCancelled && !isLockedPreviewRef.current) {
+          const data = await res.json();
 
-        let visibleX = 0;
-        let visibleY = 0;
-        let visibleW = vw;
-        let visibleH = vh;
-
-        if (videoAspect > containerAspect) {
-          visibleW = vh * containerAspect;
-          visibleX = (vw - visibleW) / 2;
-        } else {
-          visibleH = vw / containerAspect;
-          visibleY = (vh - visibleH) / 2;
-        }
-
-        // Tahap 1: Cari kotak plat nomor dengan YOLOv8n-Efficient
-        const detected = await detectPlateBoxWithYolo(
-          video,
-          visibleX,
-          visibleY,
-          visibleW,
-          visibleH
-        );
-
-        if (detected && !isCancelled && !isLockedPreviewRef.current) {
-          setTrackedBox(detected.boxNorm);
-
-          // Tahap 2: Baca isi kotak plat yang ditemukan YOLOv8 menggunakan SVTR26-Tiny
-          const recResult = await recognizePlateCropWithSvtr(
-            video,
-            detected.cropX,
-            detected.cropY,
-            detected.cropW,
-            detected.cropH
-          );
-
-          if (recResult.plate && !isCancelled && !isLockedPreviewRef.current) {
-            if (
-              registerCandidateHit(
-                recResult.plate,
-                recResult.confidence,
-                true,
-                recResult.snapshotUrl
-              )
-            ) {
-              return;
-            }
+          if (data.box) {
+            setTrackedBox(data.box);
+          } else {
+            setTrackedBox(null);
           }
-        } else if (!isCancelled && !isLockedPreviewRef.current) {
-          setTrackedBox(null);
 
-          // Fallback jika plat didekatkan sangat dekat memenuhi kotak tengah
-          const fallbackW = Math.round(visibleW * 0.78);
-          const fallbackH = Math.round(visibleH * 0.26);
-          const fallbackX = Math.round(visibleX + (visibleW - fallbackW) / 2);
-          const fallbackY = Math.round(visibleY + (visibleH - fallbackH) / 2);
+          if (data.rawText) {
+            setRawOcrPreview(data.rawText);
+          }
 
-          const recFallback = await recognizePlateCropWithSvtr(
-            video,
-            fallbackX,
-            fallbackY,
-            fallbackW,
-            fallbackH
-          );
-
-          if (recFallback.plate && !isCancelled && !isLockedPreviewRef.current) {
+          if (data.plate) {
             if (
               registerCandidateHit(
-                recFallback.plate,
-                recFallback.confidence,
-                false,
-                recFallback.snapshotUrl
+                data.plate,
+                Number(data.confidence || 0),
+                Boolean(data.isFromYoloBox),
+                frameDataUrl
               )
             ) {
               return;
@@ -826,7 +459,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           }
         }
       } catch (err) {
-        console.warn('ANPR ONNX inference error:', err);
+        console.warn('Server ANPR request error:', err);
       } finally {
         if (!isCancelled) {
           setIsProcessingFrame(false);
@@ -834,17 +467,17 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       }
 
       if (!isCancelled) {
-        timerId = setTimeout(processNextFrame, 60);
+        timerId = setTimeout(processNextFrame, 90);
       }
     };
 
-    timerId = setTimeout(processNextFrame, 100);
+    timerId = setTimeout(processNextFrame, 120);
 
     return () => {
       isCancelled = true;
       if (timerId) clearTimeout(timerId);
     };
-  }, [isOpen, isModelReady, manualMode]);
+  }, [isOpen, manualMode]);
 
   // Handle buka/tutup kamera
   useEffect(() => {
@@ -919,10 +552,10 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
             </div>
             <div className="min-w-0">
               <h3 className="truncate text-sm font-bold text-ink sm:text-base">
-                AI ANPR Scanner (YOLOv8 + SVTR)
+                AI ANPR Scanner (YOLOv8 + SVTR Server)
               </h3>
               <p className="truncate text-[10px] font-semibold text-status-green">
-                Deteksi Otomatis Kotak Plat Nomor (Jauh / Dekat)
+                Siap Instan 0 Detik di Semua Perangkat • Auto-Jepret
               </p>
             </div>
           </div>
@@ -998,7 +631,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                   <img
                     src={capturedSnapshot}
                     alt="Captured plate"
-                    className="absolute inset-0 h-full w-full object-contain opacity-35"
+                    className="absolute inset-0 h-full w-full object-cover opacity-35"
                   />
                 )}
 
@@ -1084,7 +717,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                       ? `Terdeteksi Akurat: ${detectedPlate}`
                       : candidateHint
                       ? `Terdeteksi: ${candidateHint} — Mengunci...`
-                      : statusText}
+                      : 'AI ANPR Siap — Arahkan ke plat nomor (jauh/dekat otomatis terdeteksi)'}
                   </span>
                 </div>
                 {rawOcrPreview && !detectedPlate && !candidateHint && (
@@ -1150,7 +783,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
 
             <div className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-status-green/30 bg-status-green-bg px-3 py-2.5 text-xs font-bold text-status-green">
               <Camera className="h-4 w-4 shrink-0 animate-pulse" />
-              <span className="truncate">YOLOv8 + SVTR AI ANPR Aktif</span>
+              <span className="truncate">Server AI ANPR Aktif (Tanpa Loading Model)</span>
             </div>
 
             <button
