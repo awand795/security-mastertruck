@@ -43,7 +43,6 @@ const VALID_INDONESIAN_REGIONS = new Set([
  * dan WAJIB mengandung minimal 1 digit angka asli agar huruf murni seperti "ETE" TIDAK PERNAH berubah jadi "E 7 E".
  */
 const normalizeMiddleDigits = (rawDigits: string): string | null => {
-  // Wajib memiliki setidaknya satu digit angka asli (0-9)
   if (!/[0-9]/.test(rawDigits)) return null;
 
   const cleaned = rawDigits
@@ -59,11 +58,11 @@ const normalizeMiddleDigits = (rawDigits: string): string | null => {
 
 /**
  * Normalisasi karakter huruf di blok wilayah/seri belakang.
+ * Catatan: Jangan paksa konversi agresif yang merusak huruf L/G/W, hanya 0->O dan 8->B.
  */
 const normalizePlateLetters = (rawLetters: string): string => {
   return rawLetters
     .replace(/0/g, 'O')
-    .replace(/1/g, 'I')
     .replace(/8/g, 'B');
 };
 
@@ -71,7 +70,7 @@ const normalizePlateLetters = (rawLetters: string): string => {
  * Validasi dan bersihkan kode wilayah (mengabaikan gangguan baut di pinggir kiri misal "1BK" -> "BK").
  */
 const resolveRegionCode = (rawPrefix: string): string | null => {
-  const norm = normalizePlateLetters(rawPrefix);
+  const norm = normalizePlateLetters(rawPrefix).replace(/1/g, 'I');
   if (VALID_INDONESIAN_REGIONS.has(norm)) return norm;
 
   if (norm.length === 3) {
@@ -86,7 +85,7 @@ const resolveRegionCode = (rawPrefix: string): string | null => {
 /**
  * Validasi kelayakan struktur plat nomor Indonesia hasil ANPR:
  * - Format: [1-2 Huruf Wilayah Resmi] [1-4 Angka] [1-3 Huruf Seri]
- * - Total panjang karakter bersih (tanpa spasi) minimal 5 karakter (contoh: BK 8210 GI = 8 karakter, B 1234 XY = 7 karakter)
+ * - Total panjang karakter bersih (tanpa spasi) minimal 5 karakter (contoh: BK 8210 GI = 8 karakter, B 1234 WLG = 8 karakter)
  *   sehingga noise bayangan pendek seperti "E 7 E" (3 karakter) otomatis ditolak 100%.
  */
 const validateCandidatePlate = (
@@ -100,14 +99,13 @@ const validateCandidatePlate = (
   const nomor = normalizeMiddleDigits(rawNomor);
   if (!nomor) return null;
 
-  const seri = normalizePlateLetters(rawSeri);
+  // Untuk seri belakang, hanya ubah '1' menjadi 'I' jika bukan bagian dari huruf utuh
+  const seri = normalizePlateLetters(rawSeri).replace(/1/g, 'I');
   if (!/^[A-Z]{1,3}$/.test(seri)) return null;
 
-  // Pastikan total panjang karakter minimal 5 karakter (mencegah noise pendek 3-4 karakter seperti "E 7 E")
   const totalCleanLen = wilayah.length + nomor.length + seri.length;
   if (totalCleanLen < 5) return null;
 
-  // Jika kode wilayah hanya 1 huruf dan seri hanya 1 huruf, angka tengah wajib minimal 3 digit
   if (wilayah.length === 1 && seri.length === 1 && nomor.length < 3) {
     return null;
   }
@@ -117,6 +115,7 @@ const validateCandidatePlate = (
 
 /**
  * Ekstraksi plat nomor polisi Indonesia dari teks mentah ANPR/OCR.
+ * Memprioritaskan pembacaan per baris sehingga baris tanggal pajak ("12 22" / "10 28") di bawah plat otomatis diabaikan.
  */
 export const extractIndonesianPlate = (rawText: string): string | null => {
   if (!rawText) return null;
@@ -135,7 +134,7 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
   const candidatesToCheck = [...lines, lines.join(' ')];
 
   for (const line of candidatesToCheck) {
-    // 1. Pola dengan spasi (misal "BK 8210 GI", "BK 8210GI", "BK8210 GI")
+    // 1. Pola dengan spasi (misal "B 1234 WLG", "BK 8210 GI", "BK 8210GI")
     const flexRegex = /(?:^|\s)([A-Z0-9]{1,3})\s+([0-9ODQILB]{1,4})\s*([A-Z0-9]{1,3})(?=\s|$)/g;
     let match: RegExpExecArray | null;
     while ((match = flexRegex.exec(line)) !== null) {
@@ -143,7 +142,7 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
       if (valid) return valid;
     }
 
-    // 2. Pola rapat atau terpecah antar token (misal "BK8210GI")
+    // 2. Pola rapat atau terpecah antar token (misal "B1234WLG" atau "BK8210GI")
     const compactTokens = line.split(/\s+/);
     for (let i = 0; i < compactTokens.length; i++) {
       const combos = [
@@ -155,7 +154,6 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
       ].filter((c) => c.length >= 5 && c.length <= 10);
 
       for (const token of combos) {
-        // Prioritaskan kode wilayah 2 huruf (BK, BB, BL, BM, dll.) lalu 1 huruf
         for (const prefixLen of [2, 1, 3]) {
           if (token.length <= prefixLen + 2) continue;
           const rawPrefix = token.slice(0, prefixLen);
@@ -173,7 +171,7 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
   return null;
 };
 
-const COUNTDOWN_DURATION_MS = 800;
+const COUNTDOWN_DURATION_MS = 850;
 
 export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   isOpen,
@@ -189,7 +187,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const cropCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const invertCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Penyimpanan konsensus multi-frame agar tidak salah baca saat kamera goyang
+  // Penyimpanan konsensus multi-frame: WAJIB terbaca identik minimal 2 frame berturut-turut
   const lastCandidateRef = useRef<{ plate: string; count: number; timestamp: number }>({
     plate: '',
     count: 0,
@@ -212,7 +210,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const [manualMode, setManualMode] = useState(false);
   const [manualText, setManualText] = useState('');
 
-  // Bersihkan timer countdown preview 0.8 detik
   const clearPreviewTimers = () => {
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
@@ -257,7 +254,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     }
   };
 
-  // 2. Inisialisasi Hardware Native TextDetector (jika didukung browser) + ANPR Worker (PSM.SINGLE_LINE)
+  // 2. Inisialisasi Hardware Native TextDetector + ANPR Worker (PSM.SINGLE_BLOCK)
   useEffect(() => {
     let isCancelled = false;
 
@@ -265,7 +262,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       try {
         setWorkerStatusText('Mengaktifkan sensor ANPR Plat Nomor...');
 
-        // Cek dukungan Hardware-Accelerated Shape Detection API (Chrome Android / Desktop)
         const Win = window as any;
         if (typeof Win.TextDetector === 'function') {
           try {
@@ -281,15 +277,16 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           return;
         }
 
-        // Gunakan PSM.SINGLE_LINE (7) khusus untuk membaca 1 baris utama nomor polisi
+        // Gunakan PSM.SINGLE_BLOCK (6) agar baris utama ("B 1234 WLG") dan baris pajak ("12 22")
+        // dipisahkan secara alami tanpa memotong kaki bawah huruf "L"
         await worker.setParameters({
           tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ',
-          tessedit_pageseg_mode: PSM.SINGLE_LINE,
+          tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
         });
 
         workerRef.current = worker;
         setIsWorkerReady(true);
-        setWorkerStatusText('Posisikan plat di tengah kotak — Otomatis Jepret saat fokus');
+        setWorkerStatusText('Posisikan plat di dalam kotak — Otomatis Jepret saat fokus');
       } catch (err) {
         console.error('Failed to init ANPR worker:', err);
         if (!isCancelled) {
@@ -332,7 +329,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           facingMode: { ideal: mode },
           width: { ideal: 1920, min: 1280 },
           height: { ideal: 1080, min: 720 },
-          // @ts-ignore - aktifkan continuous autofocus pada kamera HP bila didukung
+          // @ts-ignore
           focusMode: { ideal: 'continuous' },
         } as MediaTrackConstraints,
         audio: false,
@@ -344,7 +341,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       }
       isScanningRef.current = true;
     } catch (err1) {
-      console.warn('High-res mode constraint failed, trying standard environment fallback:', err1);
       try {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -389,9 +385,12 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   };
 
   /**
-   * 4. ANPR Stage 1: Plate Strip Cropping + Adaptive Histogram Contrast Normalization
-   *    Hanya memotong pita huruf utama plat nomor (rasio ~3.6:1, membuang 24% bagian bawah
-   *    yang berisi angka bulan/tahun pajak "10.28" serta membuang pinggiran baut).
+   * 4. ANPR Stage 1: Full-Height Plate Box Cropping + Natural Contrast Preservation
+   *    PENTING:
+   *    - Mengambil 100% tinggi kotak panduan (TIDAK memotong 22% bawah) agar kaki horizontal bawah huruf "L"
+   *      pada "B 1234 WLG" tidak pernah terpotong menjadi "I" ("WIG").
+   *    - Menggunakan kontras lembut (contrast = 20) tanpa clipping ekstrem agar garis horizontal huruf di layar HP
+   *      maupun plat asli tetap tebal dan utuh.
    */
   const captureAnprPlateCanvases = (): {
     normalCanvas: HTMLCanvasElement;
@@ -412,7 +411,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     const cw = video.clientWidth || vw;
     const ch = video.clientHeight || vh;
 
-    // Hitung area video yang tampil di layar akibat `object-cover`
     const videoAspect = vw / vh;
     const containerAspect = cw / ch;
 
@@ -429,18 +427,14 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       visibleY = (vh - visibleH) / 2;
     }
 
-    // Kotak ANPR di layar berukuran 84% lebar x 26% tinggi container.
-    // Kita potong fokus pada 76% bagian atas kotak (pita huruf utama nomor polisi, tanpa tanggal pajak di bawah)
-    const fullBoxW = visibleW * 0.80;
-    const fullBoxH = visibleH * 0.26;
-    const boxX = Math.round(visibleX + (visibleW - fullBoxW) / 2);
-    const boxY = Math.round(visibleY + (visibleH - fullBoxH) / 2);
+    // Ambil penuh area kotak target di layar (82% lebar x 30% tinggi) tanpa memotong bagian bawah huruf
+    const boxW = Math.round(visibleW * 0.82);
+    const boxH = Math.round(visibleH * 0.30);
+    const boxX = Math.round(visibleX + (visibleW - boxW) / 2);
+    const boxY = Math.round(visibleY + (visibleH - boxH) / 2);
 
-    const stripW = Math.round(fullBoxW);
-    const stripH = Math.round(fullBoxH * 0.78); // Buang 22% baris bawah (bulan/tahun pajak)
-
-    const targetW = 680;
-    const targetH = Math.max(130, Math.round((stripH / stripW) * targetW));
+    const targetW = 840;
+    const targetH = Math.max(200, Math.round((boxH / boxW) * targetW));
 
     const normalCanvas = cropCanvasRef.current;
     normalCanvas.width = targetW;
@@ -448,10 +442,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     const normalCtx = normalCanvas.getContext('2d', { willReadFrequently: true });
     if (!normalCtx) return null;
 
-    // Beri padding putih tipis (margin) agar huruf pinggir tidak menempel ke tepi canvas
-    normalCtx.fillStyle = '#FFFFFF';
-    normalCtx.fillRect(0, 0, targetW, targetH);
-    normalCtx.drawImage(video, boxX, boxY, stripW, stripH, 8, 6, targetW - 16, targetH - 12);
+    normalCtx.drawImage(video, boxX, boxY, boxW, boxH, 0, 0, targetW, targetH);
 
     const invertedCanvas = invertCanvasRef.current;
     invertedCanvas.width = targetW;
@@ -465,31 +456,21 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       const d = imgData.data;
       const inv = invData.data;
 
-      // Cari min & max luminance untuk Auto-Levels (Adaptive Contrast Stretching)
-      let minLum = 255;
-      let maxLum = 0;
-      for (let i = 0; i < d.length; i += 16) {
-        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        if (lum < minLum) minLum = lum;
-        if (lum > maxLum) maxLum = lum;
-      }
-      const range = Math.max(40, maxLum - minLum);
-      const contrast = 55;
+      // Kontras halus (20) agar kaki horizontal huruf 'L', 'E', 'F' tidak menipis/hilang saat scan layar HP atau plat silau
+      const contrast = 20;
       const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
       for (let i = 0; i < d.length; i += 4) {
-        const rawGray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        // Normalisasi rentang cahaya
-        const stretched = ((rawGray - minLum) / range) * 255;
+        const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
 
-        // Polarity 1: Plat Putih / Plat Kuning (teks gelap di atas latar terang)
-        const cNorm = Math.max(0, Math.min(255, factor * (stretched - 128) + 128));
+        // Polarity 1: Plat Putih / Plat Kuning (tulisan gelap di atas latar terang)
+        const cNorm = Math.max(0, Math.min(255, factor * (gray - 128) + 128));
         d[i] = cNorm;
         d[i + 1] = cNorm;
         d[i + 2] = cNorm;
 
-        // Polarity 2: Plat Hitam (teks putih di atas latar hitam -> dibalik jadi teks gelap di latar putih)
-        const invGray = 255 - stretched;
+        // Polarity 2: Plat Hitam seperti "B 1234 WLG" (tulisan putih di atas latar hitam -> dibalik jadi teks hitam di latar putih)
+        const invGray = 255 - gray;
         const cInv = Math.max(0, Math.min(255, factor * (invGray - 128) + 128));
         inv[i] = cInv;
         inv[i + 1] = cInv;
@@ -508,7 +489,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
 
   /**
    * Mulai Preview 0.8 Detik dengan Progress Bar sebelum Auto-Jepret final.
-   * Petugas dapat menekan "Ulangi Scan" jika ingin membatalkan, atau tunggu 0.8 detik untuk otomatis lanjut.
    */
   const startPreviewAndAutoSnap = (plate: string, snapshotCanvas: HTMLCanvasElement) => {
     if (isLockedPreviewRef.current) return;
@@ -546,7 +526,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     }, COUNTDOWN_DURATION_MS);
   };
 
-  // Batalkan preview 0.8 detik & lanjut scan kamera lagi
   const handleRescan = () => {
     clearPreviewTimers();
     isLockedPreviewRef.current = false;
@@ -558,7 +537,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     isScanningRef.current = true;
   };
 
-  // Langsung gunakan plat tanpa menunggu sisa 0.8 detik
   const handleAcceptNow = () => {
     if (!detectedPlate) return;
     clearPreviewTimers();
@@ -568,20 +546,18 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   };
 
   /**
-   * Evaluasi kandidat plat dengan Konsensus Multi-Frame:
-   * - Wajib Confidence OCR memadai (>= 62%)
-   * - Wajib terbaca KONSISTEN 2x berturut-turut (atau 1x dengan confidence sangat tinggi >= 86% dan panjang >= 7 karakter)
+   * Evaluasi kandidat plat dengan Konsensus 2-Frame Wajib:
+   * Tidak boleh langsung jepret di frame pertama saat kamera baru mengarah/fokus,
+   * melainkan WAJIB terbaca identik minimal 2 frame berturut-turut!
    */
   const registerCandidateHit = (
     plate: string,
-    confidence: number,
+    _confidence: number,
     canvas: HTMLCanvasElement
   ): boolean => {
     const now = Date.now();
     const prev = lastCandidateRef.current;
-    const cleanLen = plate.replace(/\s+/g, '').length;
 
-    // Jika plat yang sama terbaca lagi dalam rentang 2.5 detik -> Konsensus 2 frame tercapai!
     if (prev.plate === plate && now - prev.timestamp < 2500) {
       const nextCount = prev.count + 1;
       lastCandidateRef.current = { plate, count: nextCount, timestamp: now };
@@ -590,13 +566,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
         return true;
       }
     } else {
-      // Frame pertama: jika confidence sangat tinggi (>= 86%) dan format lengkap (misal BK 8210 GI = 8 char), langsung lolos
-      if (confidence >= 86 && cleanLen >= 7) {
-        lastCandidateRef.current = { plate, count: 2, timestamp: now };
-        startPreviewAndAutoSnap(plate, canvas);
-        return true;
-      }
-      // Simpan sebagai kandidat frame ke-1 dan tampilkan indikator "Memverifikasi [Plat]..."
       lastCandidateRef.current = { plate, count: 1, timestamp: now };
       setCandidateHint(plate);
     }
@@ -613,7 +582,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     const processNextFrame = async () => {
       if (isCancelled) return;
 
-      // Jika sedang dalam mode preview 0.8 detik atau kamera belum siap, tunggu & jadwalkan ulang
       if (
         isLockedPreviewRef.current ||
         !isScanningRef.current ||
@@ -634,15 +602,15 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       setIsProcessingFrame(true);
 
       try {
-        // Tahap A: Coba Hardware-Accelerated Native TextDetector dulu bila tersedia di perangkat
+        // Tahap A: Hardware-Accelerated Native TextDetector (jika didukung browser)
         if (nativeDetectorRef.current) {
           try {
             const blocks = await nativeDetectorRef.current.detect(canvases.normalCanvas);
             if (Array.isArray(blocks) && blocks.length > 0) {
-              const joinedNative = blocks.map((b: any) => b.rawValue || '').join(' ');
+              const joinedNative = blocks.map((b: any) => b.rawValue || '').join('\n');
               const nativePlate = extractIndonesianPlate(joinedNative);
               if (nativePlate && !isLockedPreviewRef.current && !isCancelled) {
-                if (registerCandidateHit(nativePlate, 85, canvases.normalCanvas)) {
+                if (registerCandidateHit(nativePlate, 90, canvases.normalCanvas)) {
                   return;
                 }
               }
@@ -652,11 +620,11 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           }
         }
 
-        // Tahap B: Scan Polarity 1 (Plat Putih & Plat Kuning) + Cek Confidence Score
+        // Tahap B: Scan Polarity 1 (Plat Putih & Plat Kuning)
         const resNormal = await workerRef.current.recognize(canvases.normalCanvas);
         const textNormal = resNormal?.data?.text || '';
         const confNormal = Number(resNormal?.data?.confidence ?? 0);
-        const plateNormal = confNormal >= 58 ? extractIndonesianPlate(textNormal) : null;
+        const plateNormal = confNormal >= 55 ? extractIndonesianPlate(textNormal) : null;
 
         if (plateNormal && !isLockedPreviewRef.current && !isCancelled) {
           if (registerCandidateHit(plateNormal, confNormal, canvases.normalCanvas)) {
@@ -664,12 +632,12 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           }
         }
 
-        // Tahap C: Scan Polarity 2 (Plat Hitam tulisan Putih) + Cek Confidence Score
+        // Tahap C: Scan Polarity 2 (Plat Hitam tulisan Putih seperti "B 1234 WLG")
         if (!isLockedPreviewRef.current && !isCancelled && workerRef.current) {
           const resInv = await workerRef.current.recognize(canvases.invertedCanvas);
           const textInv = resInv?.data?.text || '';
           const confInv = Number(resInv?.data?.confidence ?? 0);
-          const plateInv = confInv >= 58 ? extractIndonesianPlate(textInv) : null;
+          const plateInv = confInv >= 55 ? extractIndonesianPlate(textInv) : null;
 
           if (plateInv && !isLockedPreviewRef.current && !isCancelled) {
             if (registerCandidateHit(plateInv, confInv, canvases.normalCanvas)) {
@@ -694,7 +662,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       }
 
       if (!isCancelled) {
-        timerId = setTimeout(processNextFrame, 160);
+        timerId = setTimeout(processNextFrame, 150);
       }
     };
 
@@ -794,7 +762,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           </button>
         </div>
 
-        {/* Viewport Kamera dengan Overlay Proporsi Plat Nomor Indonesia (Rasio ~3.2 : 1) */}
+        {/* Viewport Kamera dengan Overlay Proporsi Plat Nomor Indonesia */}
         <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden bg-black sm:aspect-[4/3] sm:flex-none">
           {errorMsg ? (
             <div className="m-4 max-w-sm space-y-3 rounded-2xl border border-border bg-surface-raised p-5 text-center">
@@ -825,9 +793,9 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                 <div className="pointer-events-none absolute inset-0 z-30 bg-white/80 transition-opacity duration-150" />
               )}
 
-              {/* Bounding Box Proporsi Plat Nomor Indonesia (Lebar 82%, Tinggi 26%) */}
+              {/* Bounding Box Proporsi Plat Nomor Indonesia (Lebar 82%, Tinggi 30%) */}
               <div
-                className={`pointer-events-none absolute left-1/2 top-1/2 h-[26%] w-[82%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-2 transition-all duration-200 ${
+                className={`pointer-events-none absolute left-1/2 top-1/2 h-[30%] w-[82%] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border-2 transition-all duration-200 ${
                   detectedPlate
                     ? 'border-status-green bg-black/75 shadow-[0_0_40px_rgba(34,197,94,0.85)] scale-[1.03]'
                     : candidateHint
@@ -849,11 +817,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                 <div className="absolute -right-1 -top-1 h-5 w-5 border-r-4 border-t-4 border-accent rounded-tr-lg" />
                 <div className="absolute -bottom-1 -left-1 h-5 w-5 border-b-4 border-l-4 border-accent rounded-bl-lg" />
                 <div className="absolute -bottom-1 -right-1 h-5 w-5 border-b-4 border-r-4 border-accent rounded-br-lg" />
-
-                {/* Garis pemisah halus batas baris tanggal pajak (22% bawah) */}
-                {!detectedPlate && (
-                  <div className="absolute inset-x-4 bottom-[22%] border-b border-dashed border-white/30" />
-                )}
 
                 {/* Laser scan line animation (jika belum terdeteksi) */}
                 {!detectedPlate && (
@@ -895,7 +858,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                     </div>
                   ) : (
                     <span className="rounded-lg bg-black/50 px-2.5 py-1 font-mono text-[11px] font-bold tracking-wider text-white/95 backdrop-blur-xs">
-                      Posisikan Baris Nomor Polisi di Tengah Kotak
+                      Masukkan Seluruh Plat Nomor ke Dalam Kotak Ini
                     </span>
                   )}
                 </div>
@@ -949,7 +912,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           )}
         </div>
 
-        {/* Modal Koreksi Manual (jika plat sangat kotor/rusak) */}
+        {/* Modal Koreksi Manual */}
         {manualMode && (
           <div className="border-t border-border bg-surface-raised p-4 space-y-3 animate-in slide-in-from-bottom-2 duration-200">
             <div>
@@ -1023,7 +986,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       <style>{`
         @keyframes scanLaser {
           0% { top: 8%; opacity: 0.25; }
-          50% { top: 72%; opacity: 1; }
+          50% { top: 88%; opacity: 1; }
           100% { top: 8%; opacity: 0.25; }
         }
       `}</style>
