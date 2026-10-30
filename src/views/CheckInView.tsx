@@ -202,12 +202,12 @@ export const CheckInView: React.FC = () => {
     const cleanTarget = normalizePlate(rawTarget);
     setErrorMsg(null);
     setIsSearching(true);
-    setHasSearched(true);
+    setHasSearched(false);
+    setShowSuggestions(false);
 
     try {
       const results = await securityApi.searchCheckinCandidates(cleanTarget);
       setCandidates(results);
-      setShowSuggestions(true);
 
       // 1. Cek apakah ada kecocokan exact nopol pada booking/member
       const exactMatches = results.filter((item) => item.no_polisi_clean === cleanTarget);
@@ -216,42 +216,16 @@ export const CheckInView: React.FC = () => {
         // Tepat 1 kandidat cocok persis -> pilih langsung
         chooseCandidate(exactMatches[0], true);
         setShowSuggestions(false);
-      } else if (exactMatches.length > 1) {
-        // Ada booking + member -> biarkan user memilih dari dropdown suggestions
+      } else if (exactMatches.length > 1 || results.length > 0) {
+        // Ada beberapa kandidat (booking + member atau partial match) -> tampilkan pilihan
         setShowSuggestions(true);
-      } else if (results.length === 0 && cleanTarget.length >= 3) {
-        // 2. Jika tidak ada di searchCheckinCandidates, cek langsung ke tabel member unit
-        const memberUnits = await securityApi.lookupUnitMember(cleanTarget);
-        if (memberUnits.length > 0) {
-          const m = memberUnits[0];
-          const memberCandidate: CheckinCandidate = {
-            source: 'MEMBER_UNIT',
-            no_polisi: m.no_polisi || cleanTarget,
-            no_polisi_clean: cleanTarget,
-            customer_name: m.nama_perusahaan || m.customer_name || 'Member',
-            nama_perusahaan: m.nama_perusahaan,
-            nama_pengguna_fleet: m.nama_pengguna_fleet || m.nama_supir,
-            unit_telepon: m.no_telepon_supir,
-            merk: m.merk,
-            model: m.model,
-            jenis_armada: m.jenis_armada,
-            has_active_booking: false,
-            status_aktif: true,
-            is_confirmed: true,
-            can_checkin: true,
-            is_within_window: true,
-            is_stale_unconfirmed: false,
-          };
-          setCandidates([memberCandidate]);
-          chooseCandidate(memberCandidate, true);
-          setShowSuggestions(false);
-        } else {
-          // 3. Walk-in umum biasa (tidak ada booking dan bukan member)
-          selectedCandidateRef.current = null;
-          setSelectedCandidate(null);
-          setShowSuggestions(false);
-        }
+      } else {
+        // Walk-in umum biasa (tidak ada booking dan bukan member)
+        selectedCandidateRef.current = null;
+        setSelectedCandidate(null);
+        setShowSuggestions(false);
       }
+      setHasSearched(true);
     } catch (err: any) {
       console.error('Error searching candidates:', err);
       setErrorMsg('Gagal mencari data plat. Periksa koneksi jaringan.');
@@ -750,7 +724,7 @@ export const CheckInView: React.FC = () => {
             </div>
 
             {/* Status Garis Klasifikasi Kedatangan */}
-            {cleanPlate.length >= 3 && (
+            {cleanPlate.length >= 3 && !isSearching && (
               <div className="mt-2.5 space-y-2">
                 {isBookingConfirmed && selectedBooking && (
                   <StatusLine tone="green" icon={CheckCircle2}>
