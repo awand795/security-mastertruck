@@ -409,7 +409,7 @@ export const CheckInView: React.FC = () => {
         nama_pengemudi: namaPengemudi.trim(),
         no_telepon_pengemudi: noTelpPengemudi.trim(),
         pic_tujuan: effectivePicId || undefined,
-        kode_cabang: kodeCabang || '011',
+        kode_cabang: kodeCabang || (currentUser?.store_id ? String(currentUser.store_id) : undefined),
         tipe_kunjungan: effectiveTipeKunjungan,
         keluhan: keluhan.trim() || 'Pengecekan umum armada',
         petugas_security: currentUser?.nama || 'Pos Security KIM 3',

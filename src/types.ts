@@ -160,6 +160,8 @@ export interface DarkoPosProfile {
   permission?: string;
   istotp?: boolean;
   sessionid?: string;
+  store_code?: string;
+  store_name?: string;
 }
 
 export interface DarkoPosLoginResponse {

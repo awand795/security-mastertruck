@@ -23,22 +23,36 @@ export const useSecurityStore = create<SecurityStore>()(
       idToken: null,
       profile: null,
       isAuthenticated: false,
-      kodeCabang: '011',
-      namaCabang: 'CELENTANG',
+      kodeCabang: '',
+      namaCabang: '',
       login: (user, token, profile) => {
+        // Ambil data cabang real dari user / profile DarkoPOS
+        const resolvedStoreCode =
+          user.kode_cabang ||
+          profile?.store_code ||
+          (profile?.store ? String(profile.store) : '') ||
+          '';
+        const resolvedStoreName =
+          user.nama_cabang ||
+          profile?.store_name ||
+          profile?.usercompany ||
+          user.company ||
+          'BENGKEL MASTER TRUK';
+
         set({
           user: {
             ...user,
-            kode_cabang: user.kode_cabang || get().kodeCabang || '011',
-            nama_cabang: user.nama_cabang || get().namaCabang || 'CELENTANG',
+            kode_cabang: resolvedStoreCode,
+            nama_cabang: resolvedStoreName,
           },
           idToken: token || user.id_token || null,
           profile: profile || user.profile || null,
           isAuthenticated: true,
-          kodeCabang: user.kode_cabang || get().kodeCabang || '011',
-          namaCabang: user.nama_cabang || get().namaCabang || 'CELENTANG',
+          kodeCabang: resolvedStoreCode,
+          namaCabang: resolvedStoreName,
         });
-        // Sinkronkan cabang dari database di background
+
+        // Sinkronkan data cabang pengguna dari backend bila tersedia
         get().refreshBranch();
       },
       refreshBranch: async () => {
@@ -47,16 +61,16 @@ export const useSecurityStore = create<SecurityStore>()(
         if (!uid) return;
         try {
           const storeInfo = await securityApi.getUserStore(uid);
-          if (storeInfo && storeInfo.kode_cabang) {
+          if (storeInfo && (storeInfo.kode_cabang || storeInfo.nama_cabang)) {
             set((state) => ({
               kodeCabang: storeInfo.kode_cabang || state.kodeCabang,
               namaCabang: storeInfo.nama_cabang || state.namaCabang,
               user: state.user
                 ? {
                     ...state.user,
-                    kode_cabang: storeInfo.kode_cabang,
-                    nama_cabang: storeInfo.nama_cabang,
-                    store_id: storeInfo.store_id,
+                    kode_cabang: storeInfo.kode_cabang || state.user.kode_cabang,
+                    nama_cabang: storeInfo.nama_cabang || state.user.nama_cabang,
+                    store_id: storeInfo.store_id || state.user.store_id,
                   }
                 : null,
             }));
@@ -69,7 +83,9 @@ export const useSecurityStore = create<SecurityStore>()(
         set((state) => ({
           kodeCabang,
           namaCabang,
-          user: state.user ? { ...state.user, kode_cabang: kodeCabang, nama_cabang: namaCabang } : null,
+          user: state.user
+            ? { ...state.user, kode_cabang: kodeCabang, nama_cabang: namaCabang }
+            : null,
         }));
       },
       logout: () => {
@@ -82,6 +98,8 @@ export const useSecurityStore = create<SecurityStore>()(
           idToken: null,
           profile: null,
           isAuthenticated: false,
+          kodeCabang: '',
+          namaCabang: '',
         });
       },
     }),
@@ -90,8 +108,8 @@ export const useSecurityStore = create<SecurityStore>()(
       merge: (persistedState: any, currentState) => ({
         ...currentState,
         ...persistedState,
-        kodeCabang: persistedState?.kodeCabang || currentState.kodeCabang || '011',
-        namaCabang: persistedState?.namaCabang || currentState.namaCabang || 'CELENTANG',
+        kodeCabang: persistedState?.kodeCabang || currentState.kodeCabang || '',
+        namaCabang: persistedState?.namaCabang || currentState.namaCabang || '',
       }),
     }
   )

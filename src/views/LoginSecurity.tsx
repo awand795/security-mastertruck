@@ -59,6 +59,10 @@ export const LoginSecurity: React.FC = () => {
       }
 
       if (res && res.success && res.profile) {
+        const storeCode =
+          res.profile.store_code || (res.profile.store ? String(res.profile.store) : '');
+        const storeName =
+          res.profile.store_name || res.profile.usercompany || 'BENGKEL MASTER TRUK';
         login(
           {
             id: res.profile.userid || 'sec_' + Date.now(),
@@ -68,6 +72,9 @@ export const LoginSecurity: React.FC = () => {
             company: res.profile.usercompany,
             id_token: res.id_token,
             profile: res.profile,
+            kode_cabang: storeCode,
+            nama_cabang: storeName,
+            store_id: res.profile.store,
           },
           res.id_token,
           res.profile

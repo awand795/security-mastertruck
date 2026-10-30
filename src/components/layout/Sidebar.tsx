@@ -42,7 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onChangeTab }) => {
         <div className="min-w-0 leading-tight">
           <p className="truncate text-sm font-bold tracking-tight text-ink">Pos Gerbang</p>
           <p className="truncate text-[11px] font-semibold text-accent">
-            {kodeCabang ? `${kodeCabang} - ${namaCabang}` : '011 - CELENTANG'}
+            {kodeCabang && namaCabang ? `${kodeCabang} - ${namaCabang}` : (namaCabang || user?.company || 'BENGKEL MASTER TRUK')}
           </p>
         </div>
       </div>

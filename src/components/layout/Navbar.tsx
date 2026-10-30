@@ -58,7 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab }) => {
                   Pos Gerbang
                 </span>
                 <span className="truncate text-[10px] font-semibold text-accent">
-                  {kodeCabang ? `${kodeCabang} • ${namaCabang}` : '011 • CELENTANG'}
+                  {kodeCabang && namaCabang ? `${kodeCabang} • ${namaCabang}` : (namaCabang || user?.company || 'BENGKEL MASTER TRUK')}
                 </span>
               </div>
             </div>
@@ -78,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab }) => {
                   {currentInfo.title}
                 </h1>
                 <span className="hidden shrink-0 items-center rounded-full border border-accent/20 bg-accent-subtle px-2 py-0.5 text-[10px] font-bold text-accent lg:inline-flex">
-                  {kodeCabang ? `Cabang: ${kodeCabang} - ${namaCabang}` : 'Cabang: 011 - CELENTANG'}
+                  {kodeCabang && namaCabang ? `Cabang: ${kodeCabang} - ${namaCabang}` : `Cabang: ${namaCabang || user?.company || 'BENGKEL MASTER TRUK'}`}
                 </span>
               </div>
             </div>
@@ -160,7 +160,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab }) => {
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-ink-muted">Cabang / Pos</dt>
                   <dd className="truncate font-bold text-accent">
-                    {kodeCabang ? `${kodeCabang} - ${namaCabang}` : '011 - CELENTANG'}
+                    {kodeCabang && namaCabang ? `${kodeCabang} - ${namaCabang}` : (namaCabang || user?.company || 'BENGKEL MASTER TRUK')}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3">
