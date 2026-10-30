@@ -1,9 +1,9 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# Install lightweight server-side ONNX runtime + JPEG decoder
-RUN npm init -y && npm install onnxruntime-web jpeg-js && npm cache clean --force
+# Install C++ Native ONNX Runtime (onnxruntime-node) + JPEG decoder
+RUN npm init -y && npm install onnxruntime-node jpeg-js && npm cache clean --force
 
 # Copy pre-built frontend assets and ANPR server + models
 COPY dist ./dist
