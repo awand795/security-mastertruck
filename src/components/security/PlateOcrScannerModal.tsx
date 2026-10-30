@@ -10,15 +10,34 @@ interface PlateOcrScannerModalProps {
 }
 
 /**
+ * Daftar kode wilayah plat nomor resmi di Indonesia (Sumatera, Jawa, Kalimantan, Sulawesi, dll.)
+ */
+const VALID_INDONESIAN_REGIONS = new Set([
+  // Sumatera (Medan/Sumut = BK, BB; Aceh = BL; Riau = BM; Sumbar = BA; Kepri = BP; Sumsel = BG; Babel = BN; Bengkulu = BD; Lampung = BE; Jambi = BH)
+  'BK', 'BB', 'BL', 'BM', 'BA', 'BP', 'BG', 'BN', 'BD', 'BE', 'BH',
+  // Jawa
+  'A', 'B', 'D', 'E', 'F', 'T', 'Z', 'G', 'H', 'K', 'R', 'AA', 'AB', 'AD',
+  'L', 'M', 'N', 'P', 'S', 'W', 'AE', 'AG',
+  // Bali & Nusa Tenggara
+  'DK', 'DR', 'EA', 'DH', 'EB', 'ED',
+  // Kalimantan
+  'KB', 'KH', 'DA', 'KT', 'KU',
+  // Sulawesi, Maluku, Papua
+  'DB', 'DL', 'DM', 'DN', 'DT', 'DD', 'DC', 'DP', 'DW', 'DE', 'DG', 'PA', 'PB',
+]);
+
+/**
  * Normalisasi karakter angka yang sering salah terbaca oleh OCR di blok tengah plat nomor.
  */
 const normalizeOcrDigits = (rawDigits: string): string => {
   return rawDigits
     .replace(/[ODQ]/g, '0')
-    .replace(/[IL]/g, '1')
+    .replace(/[IL|!]/g, '1')
     .replace(/Z/g, '2')
+    .replace(/A/g, '4')
     .replace(/S/g, '5')
     .replace(/G/g, '6')
+    .replace(/T/g, '7')
     .replace(/B/g, '8');
 };
 
@@ -28,10 +47,32 @@ const normalizeOcrDigits = (rawDigits: string): string => {
 const normalizeOcrLetters = (rawLetters: string): string => {
   return rawLetters
     .replace(/0/g, 'O')
-    .replace(/1/g, 'I')
+    .replace(/[1|!]/g, 'I')
     .replace(/2/g, 'Z')
+    .replace(/4/g, 'A')
     .replace(/5/g, 'S')
+    .replace(/6/g, 'G')
     .replace(/8/g, 'B');
+};
+
+/**
+ * Validasi dan bersihkan kode wilayah (misal ada noise baut "1BK" atau "IBK" -> "BK").
+ */
+const resolveRegionCode = (rawPrefix: string): string | null => {
+  const norm = normalizeOcrLetters(rawPrefix);
+  if (VALID_INDONESIAN_REGIONS.has(norm)) return norm;
+
+  if (norm.length >= 2) {
+    const lastTwo = norm.slice(-2);
+    if (VALID_INDONESIAN_REGIONS.has(lastTwo)) return lastTwo;
+    const firstTwo = norm.slice(0, 2);
+    if (VALID_INDONESIAN_REGIONS.has(firstTwo)) return firstTwo;
+  }
+  if (norm.length >= 1) {
+    const lastOne = norm.slice(-1);
+    if (VALID_INDONESIAN_REGIONS.has(lastOne)) return lastOne;
+  }
+  return null;
 };
 
 /**
@@ -58,16 +99,16 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
   const candidatesToCheck = [...lines, lines.join(' ')];
 
   for (const line of candidatesToCheck) {
-    // 1. Match pola langsung dengan spasi: [1-2 huruf] [1-4 angka/karakter mirip angka] [1-3 huruf]
-    const spacedRegex = /\b([A-Z]{1,2})\s+([0-9ODQILZSGB]{1,4})\s+([A-Z0-9]{1,3})\b/g;
+    // 1. Match pola dengan spasi penuh maupun sebagian (misal "BK 8210 GI", "BK 8210GI", "BK8210 GI")
+    const flexRegex = /(?:^|\s)([A-Z0-9]{1,3})\s*([0-9ODQILZSGBAT]{1,4})\s*([A-Z0-9]{1,3})(?=\s|$)/g;
     let match: RegExpExecArray | null;
-    while ((match = spacedRegex.exec(line)) !== null) {
-      const wilayah = normalizeOcrLetters(match[1]);
+    while ((match = flexRegex.exec(line)) !== null) {
+      const wilayah = resolveRegionCode(match[1]);
       const nomor = normalizeOcrDigits(match[2]);
       const seri = normalizeOcrLetters(match[3]);
 
       if (
-        /^[A-Z]{1,2}$/.test(wilayah) &&
+        wilayah &&
         /^[1-9][0-9]{0,3}$/.test(nomor) &&
         /^[A-Z]{1,3}$/.test(seri)
       ) {
@@ -75,18 +116,35 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
       }
     }
 
-    // 2. Match pola tanpa spasi atau spasi sebagian (misal "BK8210GI" atau "BK 8210GI")
-    const compactRegex = /\b([A-Z]{1,2})\s*([1-9][0-9]{0,3})\s*([A-Z]{1,3})\b/g;
-    while ((match = compactRegex.exec(line)) !== null) {
-      const wilayah = match[1];
-      const nomor = match[2];
-      const seri = match[3];
-      if (
-        /^[A-Z]{1,2}$/.test(wilayah) &&
-        /^[1-9][0-9]{0,3}$/.test(nomor) &&
-        /^[A-Z]{1,3}$/.test(seri)
-      ) {
-        return `${wilayah} ${nomor} ${seri}`;
+    // 2. Match pola nyambung tanpa spasi atau terpecah antar token (misal "BK8210GI" atau "IBK8210G1")
+    const compactTokens = line.split(/\s+/);
+    for (let i = 0; i < compactTokens.length; i++) {
+      const combos = [
+        compactTokens[i],
+        i + 1 < compactTokens.length ? `${compactTokens[i]}${compactTokens[i + 1]}` : '',
+        i + 2 < compactTokens.length
+          ? `${compactTokens[i]}${compactTokens[i + 1]}${compactTokens[i + 2]}`
+          : '',
+      ].filter((c) => c.length >= 4 && c.length <= 10);
+
+      for (const token of combos) {
+        // Coba pecah prefix 2 huruf dulu (misal BK, BL, BM, BB), lalu 1 huruf (misal B, D, L)
+        for (const prefixLen of [2, 1, 3]) {
+          if (token.length <= prefixLen + 1) continue;
+          const rawPrefix = token.slice(0, prefixLen);
+          const wilayah = resolveRegionCode(rawPrefix);
+          if (!wilayah) continue;
+
+          const rest = token.slice(prefixLen);
+          const restMatch = rest.match(/^([0-9ODQILZSGBAT]{1,4})([A-Z0-9]{1,3})$/);
+          if (restMatch) {
+            const nomor = normalizeOcrDigits(restMatch[1]);
+            const seri = normalizeOcrLetters(restMatch[2]);
+            if (/^[1-9][0-9]{0,3}$/.test(nomor) && /^[A-Z]{1,3}$/.test(seri)) {
+              return `${wilayah} ${nomor} ${seri}`;
+            }
+          }
+        }
       }
     }
   }
@@ -105,6 +163,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const isScanningRef = useRef<boolean>(false);
   const isDetectedRef = useRef<boolean>(false);
   const cropCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const invertCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isWorkerReady, setIsWorkerReady] = useState(false);
@@ -250,7 +309,9 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
         } catch (finalErr: any) {
           console.error('All camera attempts failed:', finalErr);
           if (finalErr.name === 'NotAllowedError' || finalErr.name === 'PermissionDeniedError') {
-            setErrorMsg('Izin akses kamera diblokir. Klik ikon gembok / kamera di address bar browser untuk mengizinkan.');
+            setErrorMsg(
+              'Izin akses kamera diblokir. Klik ikon gembok / kamera di address bar browser untuk mengizinkan.'
+            );
           } else if (finalErr.name === 'NotFoundError' || finalErr.name === 'DevicesNotFoundError') {
             setErrorMsg('Kamera (webcam) tidak ditemukan di perangkat ini.');
           } else {
@@ -261,55 +322,108 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     }
   };
 
-  // 4. Crop area plat nomor dari video stream tanpa merusak kontras asli
-  const captureCroppedPlateFrame = (): HTMLCanvasElement | null => {
+  /**
+   * 4. Crop area kotak target sesuai posisi visual `object-cover` di layar
+   *    dan siapkan 2 varian gambar:
+   *    - normalCanvas: untuk Plat Putih & Plat Kuning (tulisan gelap di latar terang)
+   *    - invertedCanvas: untuk Plat Hitam (tulisan putih/terang di latar gelap)
+   */
+  const capturePlateCanvases = (): {
+    normalCanvas: HTMLCanvasElement;
+    invertedCanvas: HTMLCanvasElement;
+  } | null => {
     const video = videoRef.current;
     if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
 
     if (!cropCanvasRef.current) {
       cropCanvasRef.current = document.createElement('canvas');
     }
-    const canvas = cropCanvasRef.current;
+    if (!invertCanvasRef.current) {
+      invertCanvasRef.current = document.createElement('canvas');
+    }
 
-    // Ambil area kotak target tengah viewport (82% lebar, 42% tinggi)
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    const cropW = Math.round(vw * 0.82);
-    const cropH = Math.round(vh * 0.42);
-    const cropX = Math.round((vw - cropW) / 2);
-    const cropY = Math.round((vh - cropH) / 2);
+    const cw = video.clientWidth || vw;
+    const ch = video.clientHeight || vh;
+
+    // Hitung area video yang benar-benar tampil di layar akibat CSS `object-cover`
+    const videoAspect = vw / vh;
+    const containerAspect = cw / ch;
+
+    let visibleX = 0;
+    let visibleY = 0;
+    let visibleW = vw;
+    let visibleH = vh;
+
+    if (videoAspect > containerAspect) {
+      // Video lebih lebar dari container -> sisi kiri/kanan terpotong
+      visibleW = vh * containerAspect;
+      visibleX = (vw - visibleW) / 2;
+    } else {
+      // Video lebih tinggi dari container -> sisi atas/bawah terpotong
+      visibleH = vw / containerAspect;
+      visibleY = (vh - visibleH) / 2;
+    }
+
+    // Kotak panduan di layar berukuran 82% lebar x 38% tinggi di tengah container
+    const boxW = Math.round(visibleW * 0.84);
+    const boxH = Math.round(visibleH * 0.40);
+    const boxX = Math.round(visibleX + (visibleW - boxW) / 2);
+    const boxY = Math.round(visibleY + (visibleH - boxH) / 2);
 
     const targetW = 720;
-    const targetH = Math.round((cropH / cropW) * targetW);
+    const targetH = Math.max(160, Math.round((boxH / boxW) * targetW));
 
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
+    const normalCanvas = cropCanvasRef.current;
+    normalCanvas.width = targetW;
+    normalCanvas.height = targetH;
+    const normalCtx = normalCanvas.getContext('2d', { willReadFrequently: true });
+    if (!normalCtx) return null;
 
-    ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+    normalCtx.drawImage(video, boxX, boxY, boxW, boxH, 0, 0, targetW, targetH);
 
-    // Konversi grayscale bersih dengan peningkatan ketajaman kontras yang benar (nilai kontras 35 dari skala -255..255)
+    const invertedCanvas = invertCanvasRef.current;
+    invertedCanvas.width = targetW;
+    invertedCanvas.height = targetH;
+    const invertCtx = invertedCanvas.getContext('2d', { willReadFrequently: true });
+    if (!invertCtx) return null;
+
     try {
-      const imgData = ctx.getImageData(0, 0, targetW, targetH);
+      const imgData = normalCtx.getImageData(0, 0, targetW, targetH);
+      const invData = invertCtx.createImageData(targetW, targetH);
       const d = imgData.data;
-      const contrast = 35;
+      const inv = invData.data;
+
+      // Kontras moderat (45) untuk menajamkan huruf tanpa merusak tepi karakter
+      const contrast = 45;
       const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
       for (let i = 0; i < d.length; i += 4) {
         const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        const c = factor * (gray - 128) + 128;
-        const clamped = Math.max(0, Math.min(255, c));
-        d[i] = clamped;
-        d[i + 1] = clamped;
-        d[i + 2] = clamped;
+
+        // Normal (Plat Putih / Plat Kuning)
+        const cNorm = Math.max(0, Math.min(255, factor * (gray - 128) + 128));
+        d[i] = cNorm;
+        d[i + 1] = cNorm;
+        d[i + 2] = cNorm;
+
+        // Inverted (Plat Hitam dengan tulisan putih)
+        const invGray = 255 - gray;
+        const cInv = Math.max(0, Math.min(255, factor * (invGray - 128) + 128));
+        inv[i] = cInv;
+        inv[i + 1] = cInv;
+        inv[i + 2] = cInv;
+        inv[i + 3] = 255;
       }
-      ctx.putImageData(imgData, 0, 0);
+
+      normalCtx.putImageData(imgData, 0, 0);
+      invertCtx.putImageData(invData, 0, 0);
     } catch {
-      /* gunakan gambar asli bila gagal */
+      invertCtx.drawImage(normalCanvas, 0, 0);
     }
 
-    return canvas;
+    return { normalCanvas, invertedCanvas };
   };
 
   // Trigger Auto-Snap ketika plat nomor terdeteksi
@@ -330,33 +444,38 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     setDetectedPlate(plate);
     navigator.vibrate?.([60, 40, 80]);
 
-    // Langsung otomatis kirim hasil jepretan ke form setelah efek jepret singkat (380ms)
+    // Langsung otomatis kirim hasil jepretan ke form setelah efek jepret singkat (350ms)
     setTimeout(() => {
       stopCameraHardware();
       onDetected(plate);
       onClose();
-    }, 380);
+    }, 350);
   };
 
-  // 5. Loop Auto-Scan Kontinu (~220ms antar frame) -> begitu terdeteksi langsung jepret otomatis!
+  // 5. Loop Auto-Scan Kontinu -> TIDAK AKAN BERHENTI sampai plat terdeteksi atau modal ditutup
   useEffect(() => {
     if (!isOpen || !isWorkerReady || manualMode) return;
 
-    let timerId: any = null;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let isCancelled = false;
     isDetectedRef.current = false;
 
     const processNextFrame = async () => {
+      if (isCancelled || isDetectedRef.current) return;
+
+      // PENTING: Jika kamera masih proses inisialisasi (getUserMedia), jadwalkan ulang, JANGAN return mati!
       if (
         !isScanningRef.current ||
-        isDetectedRef.current ||
         !workerRef.current ||
-        !videoRef.current
+        !videoRef.current ||
+        videoRef.current.readyState < 2
       ) {
+        timerId = setTimeout(processNextFrame, 200);
         return;
       }
 
-      const canvas = captureCroppedPlateFrame();
-      if (!canvas) {
+      const canvases = capturePlateCanvases();
+      if (!canvases) {
         timerId = setTimeout(processNextFrame, 200);
         return;
       }
@@ -364,34 +483,49 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       setIsProcessingFrame(true);
 
       try {
-        const { data } = await workerRef.current.recognize(canvas);
-        const text = data?.text || '';
-        if (text.trim()) {
-          setRawOcrPreview(text.trim().replace(/\n+/g, ' '));
+        // Pass 1: Scan gambar normal (Plat Putih / Plat Kuning)
+        const resNormal = await workerRef.current.recognize(canvases.normalCanvas);
+        const textNormal = resNormal?.data?.text || '';
+        const plateFromNormal = extractIndonesianPlate(textNormal);
+
+        if (plateFromNormal && !isDetectedRef.current && !isCancelled) {
+          triggerAutoSnap(plateFromNormal, canvases.normalCanvas);
+          return;
         }
 
-        const plate = extractIndonesianPlate(text);
-        if (plate && !isDetectedRef.current) {
-          triggerAutoSnap(plate, canvas);
-          return;
+        // Pass 2: Scan gambar inverted (Plat Hitam tulisan Putih)
+        if (!isDetectedRef.current && !isCancelled && workerRef.current) {
+          const resInv = await workerRef.current.recognize(canvases.invertedCanvas);
+          const textInv = resInv?.data?.text || '';
+          const plateFromInv = extractIndonesianPlate(textInv);
+
+          if (plateFromInv && !isDetectedRef.current && !isCancelled) {
+            triggerAutoSnap(plateFromInv, canvases.normalCanvas);
+            return;
+          }
+
+          const combinedPreview = (textNormal.trim() || textInv.trim()).replace(/\s+/g, ' ');
+          if (combinedPreview) {
+            setRawOcrPreview(combinedPreview);
+          }
         }
       } catch (err) {
         console.warn('OCR frame recognition error:', err);
       } finally {
-        setIsProcessingFrame(false);
+        if (!isCancelled) {
+          setIsProcessingFrame(false);
+        }
       }
 
-      if (!isDetectedRef.current && isScanningRef.current) {
-        timerId = setTimeout(processNextFrame, 220);
+      if (!isCancelled && !isDetectedRef.current) {
+        timerId = setTimeout(processNextFrame, 180);
       }
     };
 
-    const startDelay = setTimeout(() => {
-      processNextFrame();
-    }, 300);
+    timerId = setTimeout(processNextFrame, 200);
 
     return () => {
-      clearTimeout(startDelay);
+      isCancelled = true;
       if (timerId) clearTimeout(timerId);
     };
   }, [isOpen, isWorkerReady, manualMode]);
@@ -427,21 +561,30 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const handleManualCapture = async () => {
     if (!videoRef.current) return;
     setIsProcessingFrame(true);
-    const canvas = captureCroppedPlateFrame();
-    if (!canvas) {
+    const canvases = capturePlateCanvases();
+    if (!canvases) {
       setIsProcessingFrame(false);
+      setManualMode(true);
       return;
     }
 
     try {
       if (workerRef.current) {
-        const { data } = await workerRef.current.recognize(canvas);
-        const plate = extractIndonesianPlate(data?.text || '');
-        if (plate) {
-          triggerAutoSnap(plate, canvas);
+        const res1 = await workerRef.current.recognize(canvases.normalCanvas);
+        const plate1 = extractIndonesianPlate(res1?.data?.text || '');
+        if (plate1) {
+          triggerAutoSnap(plate1, canvases.normalCanvas);
           return;
         }
-        setManualText(data?.text?.trim().replace(/\s+/g, ' ') || '');
+        const res2 = await workerRef.current.recognize(canvases.invertedCanvas);
+        const plate2 = extractIndonesianPlate(res2?.data?.text || '');
+        if (plate2) {
+          triggerAutoSnap(plate2, canvases.normalCanvas);
+          return;
+        }
+        setManualText(
+          (res1?.data?.text || res2?.data?.text || '').trim().replace(/\s+/g, ' ')
+        );
       }
       setManualMode(true);
     } catch (err) {
