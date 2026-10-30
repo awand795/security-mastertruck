@@ -88,8 +88,33 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
 /**
  * Resolusi cerdas antara 2 frame yang hampir identik (contoh: "B 1234 WIG" & "B 1234 WLG" -> "B 1234 WLG").
  */
+const isOneCharSubsequence = (shorter: string, longer: string): boolean => {
+  if (longer.length !== shorter.length + 1) return false;
+  let i = 0;
+  let j = 0;
+  let skipped = 0;
+  while (i < shorter.length && j < longer.length) {
+    if (shorter[i] === longer[j]) {
+      i++;
+      j++;
+    } else {
+      skipped++;
+      if (skipped > 1) return false;
+      j++;
+    }
+  }
+  return true;
+};
+
 const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
   if (plateA === plateB) return plateA;
+
+  const cleanA = plateA.replace(/\s+/g, '');
+  const cleanB = plateB.replace(/\s+/g, '');
+
+  // Jika Frame 1 kurang 1 angka/huruf (misal 'B 156 TOR') dan Frame 2 lengkap ('B 2156 TOR'), ambil yang LENGKAP!
+  if (isOneCharSubsequence(cleanA, cleanB)) return plateB;
+  if (isOneCharSubsequence(cleanB, cleanA)) return plateA;
 
   const partsA = plateA.split(' ');
   const partsB = plateB.split(' ');
@@ -111,8 +136,14 @@ const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
     } else if ((ca === 'L' && cb === 'I') || (ca === 'I' && cb === 'L')) {
       mergedSeri += 'L';
       diffCount++;
+    } else if ((ca === 'O' && cb === 'Q') || (ca === 'Q' && cb === 'O')) {
+      mergedSeri += 'O';
+      diffCount++;
     } else if ((ca === 'G' && cb === 'C') || (ca === 'C' && cb === 'G')) {
       mergedSeri += 'G';
+      diffCount++;
+    } else if ((ca === 'N' && cb === 'H') || (ca === 'H' && cb === 'N')) {
+      mergedSeri += 'N';
       diffCount++;
     } else {
       return null;
@@ -289,7 +320,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       visibleY = (vh - visibleH) / 2;
     }
 
-    const targetW = 560;
+    const targetW = 720;
     const targetH = Math.max(320, Math.round((visibleH / visibleW) * targetW));
     canvas.width = targetW;
     canvas.height = targetH;
@@ -365,20 +396,14 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const registerCandidateHit = (
     plate: string,
     confidence: number,
-    isFromYoloBox: boolean,
+    _isFromYoloBox: boolean,
     snapshotUrl: string
   ): boolean => {
     const now = Date.now();
     const recent = recentCandidatesRef.current.filter((item) => now - item.time < 3500);
 
-    // 1. Jika ditemukan langsung oleh YOLOv8-Plate Detector di server dengan confidence tinggi (>= 0.82), langsung jepret!
-    if (isFromYoloBox && confidence >= 0.82) {
-      recentCandidatesRef.current = [];
-      startPreviewAndAutoSnap(plate, snapshotUrl);
-      return true;
-    }
-
-    // 2. Cek konsensus 2 frame atau resolusi 'L' vs 'I'
+    // Verifikasi 2 frame cepat (~0.25 detik): membandingkan Frame 1 & Frame 2 agar tidak langsung jepret
+    // saat frame pertama masih goyang/kurang 1 angka, sekaligus memilih kandidat yang paling lengkap!
     for (const prev of recent) {
       const merged = mergeSimilarPlates(prev.plate, plate);
       if (merged) {
