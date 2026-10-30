@@ -58,7 +58,6 @@ const normalizeMiddleDigits = (rawDigits: string): string | null => {
 
 /**
  * Normalisasi karakter huruf di blok wilayah/seri belakang.
- * Catatan: Jangan paksa konversi agresif yang merusak huruf L/G/W, hanya 0->O dan 8->B.
  */
 const normalizePlateLetters = (rawLetters: string): string => {
   return rawLetters
@@ -99,7 +98,6 @@ const validateCandidatePlate = (
   const nomor = normalizeMiddleDigits(rawNomor);
   if (!nomor) return null;
 
-  // Untuk seri belakang, hanya ubah '1' menjadi 'I' jika bukan bagian dari huruf utuh
   const seri = normalizePlateLetters(rawSeri).replace(/1/g, 'I');
   if (!/^[A-Z]{1,3}$/.test(seri)) return null;
 
@@ -115,7 +113,6 @@ const validateCandidatePlate = (
 
 /**
  * Ekstraksi plat nomor polisi Indonesia dari teks mentah ANPR/OCR.
- * Memprioritaskan pembacaan per baris sehingga baris tanggal pajak ("12 22" / "10 28") di bawah plat otomatis diabaikan.
  */
 export const extractIndonesianPlate = (rawText: string): string | null => {
   if (!rawText) return null;
@@ -171,7 +168,53 @@ export const extractIndonesianPlate = (rawText: string): string | null => {
   return null;
 };
 
-const COUNTDOWN_DURATION_MS = 850;
+/**
+ * Resolusi cerdas antara 2 frame yang hampir identik (contoh: Frame 1 = "B 1234 WIG", Frame 2 = "B 1234 WLG").
+ * Jika Kode Wilayah dan Angka Tengah SAMA PERSIS ("B 1234"), dan seri belakang hanya beda "I" vs "L"
+ * (karena font plat Indonesia ramping sehingga "L" kadang terbaca "I"), otomatis pilih varian yang memiliki huruf "L"!
+ */
+const mergeSimilarPlates = (plateA: string, plateB: string): string | null => {
+  if (plateA === plateB) return plateA;
+
+  const partsA = plateA.split(' ');
+  const partsB = plateB.split(' ');
+  if (partsA.length !== 3 || partsB.length !== 3) return null;
+
+  // Wilayah dan Nomor Tengah harus sama persis (contoh sama-sama "B" dan "1234")
+  if (partsA[0] !== partsB[0] || partsA[1] !== partsB[1]) return null;
+
+  const seriA = partsA[2];
+  const seriB = partsB[2];
+  if (seriA.length !== seriB.length) return null;
+
+  // Cek apakah perbedaannya hanya karakter 'L' vs 'I' (atau 'G' vs 'C', 'O' vs 'Q')
+  let diffCount = 0;
+  let mergedSeri = '';
+
+  for (let i = 0; i < seriA.length; i++) {
+    const ca = seriA[i];
+    const cb = seriB[i];
+    if (ca === cb) {
+      mergedSeri += ca;
+    } else if ((ca === 'L' && cb === 'I') || (ca === 'I' && cb === 'L')) {
+      // Pilih 'L' karena huruf 'L' yang kakinya tipis sering terbaca 'I', tapi huruf 'I' tidak pernah punya kaki 'L'
+      mergedSeri += 'L';
+      diffCount++;
+    } else if ((ca === 'G' && cb === 'C') || (ca === 'C' && cb === 'G')) {
+      mergedSeri += 'G';
+      diffCount++;
+    } else {
+      return null;
+    }
+  }
+
+  if (diffCount <= 1) {
+    return `${partsA[0]} ${partsA[1]} ${mergedSeri}`;
+  }
+  return null;
+};
+
+const COUNTDOWN_DURATION_MS = 550;
 
 export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   isOpen,
@@ -187,12 +230,8 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const cropCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const invertCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Penyimpanan konsensus multi-frame: WAJIB terbaca identik minimal 2 frame berturut-turut
-  const lastCandidateRef = useRef<{ plate: string; count: number; timestamp: number }>({
-    plate: '',
-    count: 0,
-    timestamp: 0,
-  });
+  // Riwayat kandidat 5 frame terakhir agar tidak pernah macet/reset saat ada 1 frame goyang
+  const recentCandidatesRef = useRef<Array<{ plate: string; confidence: number; time: number }>>([]);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -254,7 +293,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     }
   };
 
-  // 2. Inisialisasi Hardware Native TextDetector + ANPR Worker (PSM.SINGLE_BLOCK)
+  // 2. Inisialisasi Hardware Native TextDetector + ANPR Worker
   useEffect(() => {
     let isCancelled = false;
 
@@ -277,8 +316,6 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           return;
         }
 
-        // Gunakan PSM.SINGLE_BLOCK (6) agar baris utama ("B 1234 WLG") dan baris pajak ("12 22")
-        // dipisahkan secara alami tanpa memotong kaki bawah huruf "L"
         await worker.setParameters({
           tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ',
           tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
@@ -286,7 +323,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
 
         workerRef.current = worker;
         setIsWorkerReady(true);
-        setWorkerStatusText('Posisikan plat di dalam kotak — Otomatis Jepret saat fokus');
+        setWorkerStatusText('Arahkan kamera ke plat — Otomatis Jepret saat terbaca');
       } catch (err) {
         console.error('Failed to init ANPR worker:', err);
         if (!isCancelled) {
@@ -385,16 +422,17 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   };
 
   /**
-   * 4. ANPR Stage 1: Full-Height Plate Box Cropping + Natural Contrast Preservation
-   *    PENTING:
-   *    - Mengambil 100% tinggi kotak panduan (TIDAK memotong 22% bawah) agar kaki horizontal bawah huruf "L"
-   *      pada "B 1234 WLG" tidak pernah terpotong menjadi "I" ("WIG").
-   *    - Menggunakan kontras lembut (contrast = 20) tanpa clipping ekstrem agar garis horizontal huruf di layar HP
-   *      maupun plat asli tetap tebal dan utuh.
+   * 4. ANPR Stage 1:
+   *    - Deteksi Otomatis Warna Dasar Plat (`isDarkPlate`: Plat Hitam vs Plat Putih/Kuning)
+   *      agar langsung memprioritaskan canvas yang tepat (2x lebih cepat!).
+   *    - Horizontal Aspect Stretching (1.22x lebih lebar) untuk melebarkan font plat Indonesia
+   *      yang ramping/condensed, sehingga kaki horizontal huruf 'L' pada "WLG" terlihat jelas
+   *      oleh OCR dan tidak disangka huruf 'I' ("WIG").
    */
   const captureAnprPlateCanvases = (): {
-    normalCanvas: HTMLCanvasElement;
-    invertedCanvas: HTMLCanvasElement;
+    primaryCanvas: HTMLCanvasElement;
+    secondaryCanvas: HTMLCanvasElement;
+    snapshotCanvas: HTMLCanvasElement;
   } | null => {
     const video = videoRef.current;
     if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
@@ -427,14 +465,16 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       visibleY = (vh - visibleH) / 2;
     }
 
-    // Ambil penuh area kotak target di layar (82% lebar x 30% tinggi) tanpa memotong bagian bawah huruf
     const boxW = Math.round(visibleW * 0.82);
     const boxH = Math.round(visibleH * 0.30);
     const boxX = Math.round(visibleX + (visibleW - boxW) / 2);
     const boxY = Math.round(visibleY + (visibleH - boxH) / 2);
 
-    const targetW = 840;
-    const targetH = Math.max(200, Math.round((boxH / boxW) * targetW));
+    // Lebarkan aspek horizontal 1.22x agar huruf ramping seperti 'L' pada "WLG" memiliki kaki bawah yang lebar & jelas
+    const baseW = 760;
+    const baseH = Math.max(180, Math.round((boxH / boxW) * baseW));
+    const targetW = Math.round(baseW * 1.22);
+    const targetH = baseH;
 
     const normalCanvas = cropCanvasRef.current;
     normalCanvas.width = targetW;
@@ -450,26 +490,29 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     const invertCtx = invertedCanvas.getContext('2d', { willReadFrequently: true });
     if (!invertCtx) return null;
 
+    let isDarkPlate = false;
+
     try {
       const imgData = normalCtx.getImageData(0, 0, targetW, targetH);
       const invData = invertCtx.createImageData(targetW, targetH);
       const d = imgData.data;
       const inv = invData.data;
 
-      // Kontras halus (20) agar kaki horizontal huruf 'L', 'E', 'F' tidak menipis/hilang saat scan layar HP atau plat silau
-      const contrast = 20;
+      // Hitung rata-rata kecerahan untuk mendeteksi apakah ini Plat Hitam atau Plat Putih/Kuning
+      let sumGray = 0;
+      const pixelCount = d.length / 4;
+      const contrast = 24;
       const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
 
       for (let i = 0; i < d.length; i += 4) {
         const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        sumGray += gray;
 
-        // Polarity 1: Plat Putih / Plat Kuning (tulisan gelap di atas latar terang)
         const cNorm = Math.max(0, Math.min(255, factor * (gray - 128) + 128));
         d[i] = cNorm;
         d[i + 1] = cNorm;
         d[i + 2] = cNorm;
 
-        // Polarity 2: Plat Hitam seperti "B 1234 WLG" (tulisan putih di atas latar hitam -> dibalik jadi teks hitam di latar putih)
         const invGray = 255 - gray;
         const cInv = Math.max(0, Math.min(255, factor * (invGray - 128) + 128));
         inv[i] = cInv;
@@ -478,17 +521,25 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
         inv[i + 3] = 255;
       }
 
+      const avgGray = sumGray / pixelCount;
+      // Jika rata-rata piksel gelap (< 122), berarti ini Plat Hitam (tulisan putih di latar hitam)
+      isDarkPlate = avgGray < 122;
+
       normalCtx.putImageData(imgData, 0, 0);
       invertCtx.putImageData(invData, 0, 0);
     } catch {
       invertCtx.drawImage(normalCanvas, 0, 0);
     }
 
-    return { normalCanvas, invertedCanvas };
+    return {
+      primaryCanvas: isDarkPlate ? invertedCanvas : normalCanvas,
+      secondaryCanvas: isDarkPlate ? normalCanvas : invertedCanvas,
+      snapshotCanvas: normalCanvas,
+    };
   };
 
   /**
-   * Mulai Preview 0.8 Detik dengan Progress Bar sebelum Auto-Jepret final.
+   * Mulai Preview Singkat (0.55 Detik) dengan Progress Bar sebelum Auto-Jepret final.
    */
   const startPreviewAndAutoSnap = (plate: string, snapshotCanvas: HTMLCanvasElement) => {
     if (isLockedPreviewRef.current) return;
@@ -503,7 +554,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
     }
 
     setIsShutterFlash(true);
-    setTimeout(() => setIsShutterFlash(false), 160);
+    setTimeout(() => setIsShutterFlash(false), 150);
 
     setDetectedPlate(plate);
     setCountdownProgress(0);
@@ -516,7 +567,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       const elapsed = Date.now() - startTime;
       const pct = Math.min(100, Math.round((elapsed / COUNTDOWN_DURATION_MS) * 100));
       setCountdownProgress(pct);
-    }, 40);
+    }, 35);
 
     autoConfirmTimeoutRef.current = setTimeout(() => {
       clearPreviewTimers();
@@ -529,7 +580,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   const handleRescan = () => {
     clearPreviewTimers();
     isLockedPreviewRef.current = false;
-    lastCandidateRef.current = { plate: '', count: 0, timestamp: 0 };
+    recentCandidatesRef.current = [];
     setDetectedPlate(null);
     setCandidateHint(null);
     setCapturedSnapshot(null);
@@ -546,33 +597,44 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   };
 
   /**
-   * Evaluasi kandidat plat dengan Konsensus 2-Frame Wajib:
-   * Tidak boleh langsung jepret di frame pertama saat kamera baru mengarah/fokus,
-   * melainkan WAJIB terbaca identik minimal 2 frame berturut-turut!
+   * Evaluasi kandidat plat dengan Rolling Window (5 pembacaan terakhir dalam 3.5 detik)
+   * + Resolusi Cerdas "WLG" vs "WIG" agar:
+   * 1. TIDAK PERNAH macet/lama di "Memastikan akurasi..." walaupun ada 1 frame selingan.
+   * 2. Jika 1 frame terbaca "WIG" dan frame lain terbaca "WLG", otomatis digabung menjadi "B 1234 WLG"!
    */
   const registerCandidateHit = (
     plate: string,
-    _confidence: number,
+    confidence: number,
     canvas: HTMLCanvasElement
   ): boolean => {
     const now = Date.now();
-    const prev = lastCandidateRef.current;
+    // Pertahankan kandidat dalam 3.5 detik terakhir
+    const recent = recentCandidatesRef.current.filter((item) => now - item.time < 3500);
 
-    if (prev.plate === plate && now - prev.timestamp < 2500) {
-      const nextCount = prev.count + 1;
-      lastCandidateRef.current = { plate, count: nextCount, timestamp: now };
-      if (nextCount >= 2) {
-        startPreviewAndAutoSnap(plate, canvas);
+    // Cek apakah sudah ada kandidat yang sama ATAU mirip (beda tipis 'L' vs 'I' seperti WLG vs WIG) di riwayat 3.5 detik terakhir
+    for (const prev of recent) {
+      const merged = mergeSimilarPlates(prev.plate, plate);
+      if (merged) {
+        recentCandidatesRef.current = [];
+        startPreviewAndAutoSnap(merged, canvas);
         return true;
       }
-    } else {
-      lastCandidateRef.current = { plate, count: 1, timestamp: now };
-      setCandidateHint(plate);
     }
+
+    // Jika plat mengandung huruf 'L' (tidak rancu dengan 'I') dan confidence sangat tinggi (>= 78%), langsung kunci cepat!
+    if (confidence >= 78 && plate.length >= 9 && !plate.split(' ')[2]?.includes('I')) {
+      recentCandidatesRef.current = [];
+      startPreviewAndAutoSnap(plate, canvas);
+      return true;
+    }
+
+    recent.push({ plate, confidence, time: now });
+    recentCandidatesRef.current = recent.slice(-5);
+    setCandidateHint(plate);
     return false;
   };
 
-  // 5. Loop ANPR Kontinu
+  // 5. Loop ANPR Kontinu Cepat
   useEffect(() => {
     if (!isOpen || !isWorkerReady || manualMode) return;
 
@@ -589,13 +651,13 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
         !videoRef.current ||
         videoRef.current.readyState < 2
       ) {
-        timerId = setTimeout(processNextFrame, 200);
+        timerId = setTimeout(processNextFrame, 150);
         return;
       }
 
       const canvases = captureAnprPlateCanvases();
       if (!canvases) {
-        timerId = setTimeout(processNextFrame, 200);
+        timerId = setTimeout(processNextFrame, 150);
         return;
       }
 
@@ -605,12 +667,12 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
         // Tahap A: Hardware-Accelerated Native TextDetector (jika didukung browser)
         if (nativeDetectorRef.current) {
           try {
-            const blocks = await nativeDetectorRef.current.detect(canvases.normalCanvas);
+            const blocks = await nativeDetectorRef.current.detect(canvases.snapshotCanvas);
             if (Array.isArray(blocks) && blocks.length > 0) {
               const joinedNative = blocks.map((b: any) => b.rawValue || '').join('\n');
               const nativePlate = extractIndonesianPlate(joinedNative);
               if (nativePlate && !isLockedPreviewRef.current && !isCancelled) {
-                if (registerCandidateHit(nativePlate, 90, canvases.normalCanvas)) {
+                if (registerCandidateHit(nativePlate, 90, canvases.snapshotCanvas)) {
                   return;
                 }
               }
@@ -620,38 +682,37 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
           }
         }
 
-        // Tahap B: Scan Polarity 1 (Plat Putih & Plat Kuning)
-        const resNormal = await workerRef.current.recognize(canvases.normalCanvas);
-        const textNormal = resNormal?.data?.text || '';
-        const confNormal = Number(resNormal?.data?.confidence ?? 0);
-        const plateNormal = confNormal >= 55 ? extractIndonesianPlate(textNormal) : null;
+        // Tahap B: Scan Primary Canvas (Otomatis pilih Inverted jika Plat Hitam, atau Normal jika Plat Putih/Kuning)
+        const resPrimary = await workerRef.current.recognize(canvases.primaryCanvas);
+        const textPrimary = resPrimary?.data?.text || '';
+        const confPrimary = Number(resPrimary?.data?.confidence ?? 0);
+        const platePrimary = confPrimary >= 50 ? extractIndonesianPlate(textPrimary) : null;
 
-        if (plateNormal && !isLockedPreviewRef.current && !isCancelled) {
-          if (registerCandidateHit(plateNormal, confNormal, canvases.normalCanvas)) {
+        if (platePrimary && !isLockedPreviewRef.current && !isCancelled) {
+          if (registerCandidateHit(platePrimary, confPrimary, canvases.snapshotCanvas)) {
             return;
           }
         }
 
-        // Tahap C: Scan Polarity 2 (Plat Hitam tulisan Putih seperti "B 1234 WLG")
-        if (!isLockedPreviewRef.current && !isCancelled && workerRef.current) {
-          const resInv = await workerRef.current.recognize(canvases.invertedCanvas);
-          const textInv = resInv?.data?.text || '';
-          const confInv = Number(resInv?.data?.confidence ?? 0);
-          const plateInv = confInv >= 55 ? extractIndonesianPlate(textInv) : null;
+        // Tahap C: Hanya jalankan Secondary Canvas jika Primary tidak menemukan kandidat plat sama sekali
+        if (!platePrimary && !isLockedPreviewRef.current && !isCancelled && workerRef.current) {
+          const resSec = await workerRef.current.recognize(canvases.secondaryCanvas);
+          const textSec = resSec?.data?.text || '';
+          const confSec = Number(resSec?.data?.confidence ?? 0);
+          const plateSec = confSec >= 50 ? extractIndonesianPlate(textSec) : null;
 
-          if (plateInv && !isLockedPreviewRef.current && !isCancelled) {
-            if (registerCandidateHit(plateInv, confInv, canvases.normalCanvas)) {
+          if (plateSec && !isLockedPreviewRef.current && !isCancelled) {
+            if (registerCandidateHit(plateSec, confSec, canvases.snapshotCanvas)) {
               return;
             }
           }
 
-          const bestText = (plateNormal || plateInv || textNormal.trim() || textInv.trim()).replace(
-            /\s+/g,
-            ' '
-          );
+          const bestText = (plateSec || textPrimary.trim() || textSec.trim()).replace(/\s+/g, ' ');
           if (bestText && bestText.length >= 3) {
             setRawOcrPreview(bestText);
           }
+        } else if (platePrimary) {
+          setRawOcrPreview(platePrimary);
         }
       } catch (err) {
         console.warn('ANPR frame recognition error:', err);
@@ -662,11 +723,11 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
       }
 
       if (!isCancelled) {
-        timerId = setTimeout(processNextFrame, 150);
+        timerId = setTimeout(processNextFrame, 90);
       }
     };
 
-    timerId = setTimeout(processNextFrame, 200);
+    timerId = setTimeout(processNextFrame, 120);
 
     return () => {
       isCancelled = true;
@@ -678,7 +739,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       isLockedPreviewRef.current = false;
-      lastCandidateRef.current = { plate: '', count: 0, timestamp: 0 };
+      recentCandidatesRef.current = [];
       setDetectedPlate(null);
       setCandidateHint(null);
       setCapturedSnapshot(null);
@@ -749,7 +810,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                 ANPR Scanner Plat Nomor
               </h3>
               <p className="truncate text-[10px] font-semibold text-status-green">
-                Deteksi Akurat 2-Frame + Preview 0.8 Detik Otomatis Jepret
+                Deteksi Cepat Otomatis Jepret
               </p>
             </div>
           </div>
@@ -823,7 +884,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                   <div className="absolute inset-x-2 top-0 h-0.5 bg-gradient-to-r from-transparent via-accent to-transparent shadow-[0_0_8px_rgba(234,88,12,0.8)] animate-[scanLaser_1.6s_ease-in-out_infinite]" />
                 )}
 
-                {/* Label Status & Preview 0.8 Detik di dalam kotak */}
+                {/* Label Status & Preview di dalam kotak */}
                 <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-3 py-2 text-center">
                   {detectedPlate ? (
                     <div className="flex w-full flex-col items-center gap-1.5 animate-in zoom-in-95 duration-150">
@@ -836,7 +897,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                         </span>
                       </div>
 
-                      {/* Progress Bar Countdown 0.8 Detik */}
+                      {/* Progress Bar Countdown */}
                       <div className="h-1.5 w-4/5 overflow-hidden rounded-full bg-white/25">
                         <div
                           className="h-full bg-status-green transition-all duration-75"
@@ -844,7 +905,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                         />
                       </div>
                       <span className="text-[10px] font-bold tracking-wide text-emerald-300">
-                        Otomatis gunakan plat ini...
+                        Terjepret Otomatis!
                       </span>
                     </div>
                   ) : candidateHint ? (
@@ -853,7 +914,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                         {candidateHint}
                       </span>
                       <span className="text-[10px] font-bold text-amber-200 drop-shadow">
-                        Tahan stabil sebentar — Memastikan akurasi...
+                        Mengunci fokus plat...
                       </span>
                     </div>
                   ) : (
@@ -864,7 +925,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                 </div>
               </div>
 
-              {/* Tombol Interaktif Saat Preview 0.8 Detik Muncul */}
+              {/* Tombol Interaktif Saat Preview Muncul */}
               {detectedPlate && (
                 <div className="absolute bottom-14 inset-x-4 z-30 flex items-center justify-center gap-2.5">
                   <button
@@ -898,7 +959,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
                     {detectedPlate
                       ? `Terdeteksi Akurat: ${detectedPlate}`
                       : candidateHint
-                      ? `Memverifikasi frame ke-2: ${candidateHint}...`
+                      ? `Terdeteksi: ${candidateHint} — Mengunci...`
                       : workerStatusText}
                   </span>
                 </div>
@@ -965,7 +1026,7 @@ export const PlateOcrScannerModal: React.FC<PlateOcrScannerModalProps> = ({
 
             <div className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-status-green/30 bg-status-green-bg px-3 py-2.5 text-xs font-bold text-status-green">
               <Camera className="h-4 w-4 shrink-0 animate-pulse" />
-              <span className="truncate">ANPR Aktif (Verifikasi 2-Frame + Auto Jepret)</span>
+              <span className="truncate">ANPR Aktif (Arahkan ke Plat)</span>
             </div>
 
             <button
