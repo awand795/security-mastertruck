@@ -32,19 +32,52 @@ export const securityApi = {
 
   // 1a. Unified live-search candidates (active bookings + registered member units)
   searchCheckinCandidates: async (query?: string): Promise<CheckinCandidate[]> => {
-    const res = await apiClient.get('/kim3/security/checkin-candidates', {
-      params: { q: query || '' }
+    const q = query || '';
+    // Query parallel ke kedua scope mastertruck & kim3 agar member unit dan booking di kedua skema terambil
+    const [resMaster, resKim] = await Promise.allSettled([
+      apiClient.get('/mastertruck/security/checkin-candidates', { params: { q } }),
+      apiClient.get('/kim3/security/checkin-candidates', { params: { q } }),
+    ]);
+
+    const listMaster = resMaster.status === 'fulfilled' && Array.isArray(resMaster.value?.data)
+      ? resMaster.value.data
+      : [];
+    const listKim = resKim.status === 'fulfilled' && Array.isArray(resKim.value?.data)
+      ? resKim.value.data
+      : [];
+
+    const merged = [...listMaster, ...listKim];
+    const seen = new Set<string>();
+    return merged.filter((item: CheckinCandidate) => {
+      const key = `${item.source}:${item.booking_id ?? item.unit_id ?? item.no_polisi_clean}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
-    return Array.isArray(res.data) ? res.data : [];
   },
 
-  // 1b. Lookup unit member from tbl_member_unit (/kim3/kendaraan-lookup)
+  // 1b. Lookup unit member from tbl_member_unit (/mastertruck/kendaraan-lookup & /kim3/kendaraan-lookup)
   lookupUnitMember: async (nopol: string) => {
     try {
-      const res = await apiClient.get('/kim3/kendaraan-lookup', {
-        params: { nopol }
+      const [resMaster, resKim] = await Promise.allSettled([
+        apiClient.get('/mastertruck/kendaraan-lookup', { params: { nopol } }),
+        apiClient.get('/kim3/kendaraan-lookup', { params: { nopol } }),
+      ]);
+      const listMaster = resMaster.status === 'fulfilled' && Array.isArray(resMaster.value?.data)
+        ? resMaster.value.data
+        : [];
+      const listKim = resKim.status === 'fulfilled' && Array.isArray(resKim.value?.data)
+        ? resKim.value.data
+        : [];
+
+      const merged = [...listMaster, ...listKim];
+      const seen = new Set<string | number>();
+      return merged.filter((item: any) => {
+        const idKey = item.id || item.no_polisi_clean || item.no_polisi;
+        if (seen.has(idKey)) return false;
+        seen.add(idKey);
+        return true;
       });
-      return Array.isArray(res.data) ? res.data : [];
     } catch {
       return [];
     }

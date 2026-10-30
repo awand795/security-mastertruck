@@ -10,6 +10,7 @@ interface SecurityStore {
   isAuthenticated: boolean;
   kodeCabang: string;
   namaCabang: string;
+  loginAt: number | null;
   login: (user: SecurityUser, token?: string, profile?: DarkoPosProfile) => void;
   logout: () => void;
   setBranch: (kodeCabang: string, namaCabang: string) => void;
@@ -25,6 +26,7 @@ export const useSecurityStore = create<SecurityStore>()(
       isAuthenticated: false,
       kodeCabang: '',
       namaCabang: '',
+      loginAt: null,
       login: (user, token, profile) => {
         // Ambil data cabang real dari user / profile DarkoPOS
         const resolvedStoreCode =
@@ -50,6 +52,7 @@ export const useSecurityStore = create<SecurityStore>()(
           isAuthenticated: true,
           kodeCabang: resolvedStoreCode,
           namaCabang: resolvedStoreName,
+          loginAt: Date.now(),
         });
 
         // Sinkronkan data cabang pengguna dari backend bila tersedia
@@ -100,17 +103,36 @@ export const useSecurityStore = create<SecurityStore>()(
           isAuthenticated: false,
           kodeCabang: '',
           namaCabang: '',
+          loginAt: null,
         });
       },
     }),
     {
       name: 'bengkel-kim3-security-auth',
-      merge: (persistedState: any, currentState) => ({
-        ...currentState,
-        ...persistedState,
-        kodeCabang: persistedState?.kodeCabang || currentState.kodeCabang || '',
-        namaCabang: persistedState?.namaCabang || currentState.namaCabang || '',
-      }),
+      merge: (persistedState: any, currentState) => {
+        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+        const loginAt = persistedState?.loginAt || 0;
+        const isExpired = !loginAt || (Date.now() - loginAt > ONE_DAY_MS);
+
+        if (isExpired && persistedState?.isAuthenticated) {
+          // Token expired setelah 1 hari -> wajib login ulang
+          return {
+            ...currentState,
+            user: null,
+            idToken: null,
+            profile: null,
+            isAuthenticated: false,
+            loginAt: null,
+          };
+        }
+
+        return {
+          ...currentState,
+          ...persistedState,
+          kodeCabang: persistedState?.kodeCabang || currentState.kodeCabang || '',
+          namaCabang: persistedState?.namaCabang || currentState.namaCabang || '',
+        };
+      },
     }
   )
 );
