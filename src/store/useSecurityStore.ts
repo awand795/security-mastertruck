@@ -17,6 +17,32 @@ interface SecurityStore {
   refreshBranch: () => Promise<void>;
 }
 
+// Validasi kedaluwarsa sesi security: wajib login ulang jika sudah >= 24 jam atau berganti hari kalender (besoknya)
+export function isSecuritySessionExpired(loginAtTimestamp: number | null | undefined): boolean {
+  if (!loginAtTimestamp || isNaN(loginAtTimestamp)) return true;
+
+  const now = new Date();
+  const loginDate = new Date(loginAtTimestamp);
+
+  // 1. Kadaluwarsa jika waktu sudah berlalu >= 24 jam (86.400.000 ms)
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  if (now.getTime() - loginAtTimestamp >= ONE_DAY_MS) {
+    return true;
+  }
+
+  // 2. Kadaluwarsa jika sudah berganti tanggal/hari kalender (besoknya)
+  const isDifferentCalendarDay =
+    now.getFullYear() !== loginDate.getFullYear() ||
+    now.getMonth() !== loginDate.getMonth() ||
+    now.getDate() !== loginDate.getDate();
+
+  if (isDifferentCalendarDay) {
+    return true;
+  }
+
+  return false;
+}
+
 export const useSecurityStore = create<SecurityStore>()(
   persist(
     (set, get) => ({
@@ -110,12 +136,11 @@ export const useSecurityStore = create<SecurityStore>()(
     {
       name: 'bengkel-kim3-security-auth',
       merge: (persistedState: any, currentState) => {
-        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
         const loginAt = persistedState?.loginAt || 0;
-        const isExpired = !loginAt || (Date.now() - loginAt > ONE_DAY_MS);
+        const isExpired = isSecuritySessionExpired(loginAt);
 
         if (isExpired && persistedState?.isAuthenticated) {
-          // Token expired setelah 1 hari -> wajib login ulang
+          // Token expired setelah 1 hari atau berganti hari kalender -> wajib login ulang
           return {
             ...currentState,
             user: null,

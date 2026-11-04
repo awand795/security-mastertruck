@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSecurityStore } from './store/useSecurityStore';
+import { useSecurityStore, isSecuritySessionExpired } from './store/useSecurityStore';
 import { applyTheme, useThemeStore } from './store/useThemeStore';
 import { LoginSecurity } from './views/LoginSecurity';
 import { Navbar } from './components/layout/Navbar';
@@ -12,11 +12,34 @@ import { ActiveInsideView } from './views/ActiveInsideView';
 import { TodayExitView } from './views/TodayExitView';
 
 export const App: React.FC = () => {
-  const { isAuthenticated } = useSecurityStore();
+  const { isAuthenticated, logout } = useSecurityStore();
   const [activeTab, setActiveTab] = useState<SecurityTab>('check-in');
   const [checkoutPlate, setCheckoutPlate] = useState<string | null>(null);
 
-  // Sinkronkan tema saat mount + ikuti perubahan preferensi OS (mode "Otomatis")
+
+  // Verifikasi sesi kedaluwarsa secara berkala dan saat tab dibuka kembali (besoknya wajib login lagi)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const checkExpiry = () => {
+      const currentLoginAt = useSecurityStore.getState().loginAt;
+      if (isSecuritySessionExpired(currentLoginAt)) {
+        logout();
+      }
+    };
+
+    window.addEventListener('focus', checkExpiry);
+    document.addEventListener('visibilitychange', checkExpiry);
+    const interval = setInterval(checkExpiry, 30000);
+
+    return () => {
+      window.removeEventListener('focus', checkExpiry);
+      document.removeEventListener('visibilitychange', checkExpiry);
+      clearInterval(interval);
+    };
+  }, [isAuthenticated, logout]);
+
+    // Sinkronkan tema saat mount + ikuti perubahan preferensi OS (mode "Otomatis")
   useEffect(() => {
     applyTheme();
 
