@@ -40,7 +40,7 @@ export const LoginSecurity: React.FC = () => {
         res = await securityApi.loginDarkoPos({
           userid: cleanId,
           password: password,
-          company: 'BENGKEL MASTER TRUK',
+          company: 'LPM',
         });
       } catch (eComp: any) {
         if (eComp.response?.status === 401) {
