@@ -22,7 +22,7 @@ import { ActiveInsideVehicle } from '../types';
 import { MultiCameraSection, PhotoSlot } from '../components/security/MultiCameraSection';
 import { PlateOcrScannerModal } from '../components/security/PlateOcrScannerModal';
 import { useSecurityStore } from '../store/useSecurityStore';
-import { formatPlate, normalizePlate } from '../utils/plate';
+import { formatPlate, normalizePlate, isValidPlate, PLATE_STANDARD_ERROR_MESSAGE } from '../utils/plate';
 import { broadcastRealtimeEvent } from '../utils/realtime';
 import { PageAction } from '../components/layout/BottomChrome';
 import {
@@ -99,8 +99,14 @@ export const CheckOutView: React.FC<CheckOutViewProps> = ({ initialPlate, onClea
     const cleanTarget = normalizePlate(rawTarget);
     const rawTrimmed = rawTarget.trim().toUpperCase();
 
-    if (cleanTarget.length < 2 && rawTrimmed.length < 2) {
-      setErrorMsg('Masukkan minimal 2 karakter nomor polisi untuk mencari.');
+    const isTicket = rawTrimmed.startsWith('TKT') || rawTrimmed.startsWith('TG-');
+    if (!isTicket && !isValidPlate(cleanTarget)) {
+      setErrorMsg(PLATE_STANDARD_ERROR_MESSAGE);
+      setIsSearching(false);
+      setHasSearched(false);
+      setShowSuggestions(false);
+      setSelectedVehicle(null);
+      setActiveVehicles([]);
       return;
     }
 
@@ -200,7 +206,14 @@ export const CheckOutView: React.FC<CheckOutViewProps> = ({ initialPlate, onClea
 
   const handleSubmitCheckOut = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isVehicleInside || !selectedVehicle) return;
+    if (!isValidPlate(plateInput)) {
+      setErrorMsg(PLATE_STANDARD_ERROR_MESSAGE);
+      return;
+    }
+    if (!isVehicleInside || !selectedVehicle) {
+      setErrorMsg('Pilih kendaraan yang aktif di dalam bengkel terlebih dahulu.');
+      return;
+    }
 
     setErrorMsg(null);
     setIsSubmitting(true);

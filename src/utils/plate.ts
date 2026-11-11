@@ -22,3 +22,22 @@ export const formatPlate = (value: string): string => {
   const groups = clean.match(/[A-Z]+|\d+/g);
   return groups ? groups.join(' ') : clean;
 };
+
+/**
+ * Validasi plat nomor standar Indonesia:
+ * - 1-2 huruf kode wilayah (e.g. B, BK, D, L, AB)
+ * - 1-4 angka nomor registrasi (1 s/d 9999)
+ * - 1-3 huruf seri sub-wilayah (e.g. A, XY, TQR)
+ * Contoh valid: "B 2156 TQR", "BK 8899 XY", "D 1 A"
+ * Contoh tidak valid: "BK 7", "asdasd", "12345"
+ */
+export const isValidPlate = (value?: string | null): boolean => {
+  if (!value) return false;
+  const clean = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!clean) return false;
+  return /^[A-Z]{1,2}\d{1,4}[A-Z]{1,3}$/.test(clean);
+};
+
+export const PLATE_STANDARD_ERROR_MESSAGE =
+  'Format plat tidak sesuai standar Indonesia (Contoh: B 1234 ABC atau BK 8899 XY).';
+

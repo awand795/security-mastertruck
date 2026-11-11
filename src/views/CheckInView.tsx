@@ -29,7 +29,7 @@ import { PlateOcrScannerModal } from '../components/security/PlateOcrScannerModa
 import { SelectMenu, SelectMenuOption } from '../components/common/SelectMenu';
 import { type SuccessTicketData } from '../components/security/CheckinTicketModal';
 import { useSecurityStore } from '../store/useSecurityStore';
-import { formatPlate, normalizePlate } from '../utils/plate';
+import { formatPlate, normalizePlate, isValidPlate, PLATE_STANDARD_ERROR_MESSAGE } from '../utils/plate';
 import { broadcastRealtimeEvent } from '../utils/realtime';
 import { PageAction } from '../components/layout/BottomChrome';
 import {
@@ -201,6 +201,17 @@ export const CheckInView: React.FC = () => {
     const rawTarget = overridePlate !== undefined ? overridePlate : plateInput;
     const cleanTarget = normalizePlate(rawTarget);
     setErrorMsg(null);
+
+    if (!isValidPlate(cleanTarget)) {
+      setErrorMsg(PLATE_STANDARD_ERROR_MESSAGE);
+      setIsSearching(false);
+      setHasSearched(false);
+      setShowSuggestions(false);
+      setSelectedCandidate(null);
+      selectedCandidateRef.current = null;
+      return;
+    }
+
     setIsSearching(true);
     setHasSearched(false);
     setShowSuggestions(false);
@@ -338,7 +349,7 @@ export const CheckInView: React.FC = () => {
   }));
 
   const canSubmit = () => {
-    if (cleanPlate.length < 3) return false;
+    if (!isValidPlate(cleanPlate)) return false;
     if (namaPengemudi.trim() === '') return false;
     if (!selectedPicId || effectivePicId.trim() === '') return false;
     if (tipeKunjungan === 'Lainnya' && customTipeKunjungan.trim() === '') return false;
@@ -358,6 +369,10 @@ export const CheckInView: React.FC = () => {
 
   const handleSubmitCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValidPlate(cleanPlate)) {
+      setErrorMsg(PLATE_STANDARD_ERROR_MESSAGE);
+      return;
+    }
     if (!canSubmit()) return;
 
     setErrorMsg(null);
