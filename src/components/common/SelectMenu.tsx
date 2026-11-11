@@ -379,7 +379,14 @@ export const SelectMenu: React.FC<SelectMenuProps> = ({
           open ? 'ring-2 ring-accent/20' : ''
         } ${selected ? 'text-ink' : 'text-ink-subtle'} ${buttonClassName}`}
       >
-        <span className="truncate">{selected ? selected.label : placeholder}</span>
+        <span className="flex min-w-0 items-center gap-2 truncate">
+          <span className="truncate">{selected ? selected.label : placeholder}</span>
+          {selected?.hint && (
+            <span className="rounded-md bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent shrink-0">
+              {selected.hint}
+            </span>
+          )}
+        </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-ink-subtle transition-transform ${open ? 'rotate-180' : ''}`}
         />

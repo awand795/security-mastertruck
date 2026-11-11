@@ -5,9 +5,11 @@ WORKDIR /app
 # Copy only Linux x64 C++ Native ONNX Runtime + JPEG decoder from local node_modules (zero network install)
 COPY node_modules ./node_modules
 
-# Copy pre-built frontend assets and ANPR server + models
-COPY dist ./dist
+# Copy ANPR server + models
 COPY server ./server
+
+# Copy pre-built frontend assets
+COPY dist ./dist
 
 ENV PORT=80
 EXPOSE 80
