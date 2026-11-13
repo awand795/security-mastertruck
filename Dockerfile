@@ -8,9 +8,6 @@ COPY node_modules ./node_modules
 # Copy ANPR server + models
 COPY server ./server
 
-# Copy pre-built frontend assets
-COPY dist ./dist
-
 ENV PORT=80
 EXPOSE 80
 

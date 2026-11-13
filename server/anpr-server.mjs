@@ -525,6 +525,16 @@ function proxyApiRequest(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/anpr/detect') {
     const chunks = [];
     let totalLen = 0;
@@ -560,12 +570,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.url.startsWith('/api/')) {
-    proxyApiRequest(req, res);
-    return;
-  }
-
-  serveStaticFile(req, res);
+  // Headless mode: Tidak ada web/halaman front-end, selalu 404
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('404 Not Found');
 });
 
 initModels()
