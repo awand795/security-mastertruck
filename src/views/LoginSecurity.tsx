@@ -34,7 +34,7 @@ export const LoginSecurity: React.FC = () => {
     setErrorMsg(null);
 
     try {
-      // Panggil API DarkoPOS Dev (https://leon-guru-brooklyn-watch.trycloudflare.com/api/v1/users/login)
+      // Panggil API DarkoPOS Dev (https://ccd-operate-sterling-tips.trycloudflare.com/api/v1/users/login)
       let res;
       try {
         res = await securityApi.loginDarkoPos({

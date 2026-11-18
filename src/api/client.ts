@@ -165,7 +165,7 @@ export const securityApi = {
     company?: string;
   }) => {
     const apiKey = import.meta.env.VITE_DARKOPOS_API_KEY || 'TURNONTHEAPI98';
-    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://leon-guru-brooklyn-watch.trycloudflare.com').replace(/\/+$/, '');
+    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://ccd-operate-sterling-tips.trycloudflare.com').replace(/\/+$/, '');
 
     const response = await axios.post(
       `${baseUrl}/api/v1/users/login`,
@@ -188,7 +188,7 @@ export const securityApi = {
 
   // 9. DarkoPOS Logout (/api/v1/users/logout)
   logoutDarkoPos: async (idToken?: string | null, sessionId?: string | null) => {
-    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://leon-guru-brooklyn-watch.trycloudflare.com').replace(/\/+$/, '');
+    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://ccd-operate-sterling-tips.trycloudflare.com').replace(/\/+$/, '');
     if (!baseUrl || !idToken) return;
 
     try {
