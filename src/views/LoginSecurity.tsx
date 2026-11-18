@@ -34,7 +34,7 @@ export const LoginSecurity: React.FC = () => {
     setErrorMsg(null);
 
     try {
-      // Panggil API DarkoPOS ke fixed URL http://52.77.133.95:9004/api/v1/users/login
+      // Panggil API DarkoPOS Dev (https://leon-guru-brooklyn-watch.trycloudflare.com/api/v1/users/login)
       let res;
       try {
         res = await securityApi.loginDarkoPos({
@@ -99,7 +99,7 @@ export const LoginSecurity: React.FC = () => {
       } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
         setErrorMsg('Waktu koneksi ke server POS habis. Pastikan jaringan internet stabil dan coba kembali.');
       } else if (err.code === 'ERR_NETWORK') {
-        setErrorMsg('Tidak dapat terhubung ke server autentikasi POS (52.77.133.95:9004). Pastikan koneksi internet stabil atau hubungi tim sistem.');
+        setErrorMsg('Tidak dapat terhubung ke server autentikasi POS Dev. Pastikan koneksi internet stabil atau tunnel aktif.');
       } else {
         setErrorMsg('Gagal masuk ke sistem. Silakan periksa kembali data akun Anda atau coba beberapa saat lagi.');
       }

@@ -24,7 +24,7 @@ export const apiClient = axios.create({
 export const securityApi = {
   // 1. Get bookings (all statuses for checking confirmation)
   searchConfirmedBookings: async (query?: string): Promise<BookingConfirmedItem[]> => {
-    const res = await apiClient.get('/mastertruck/security/booking-confirmed', {
+    const res = await apiClient.get('/kim3/security/booking-confirmed', {
       params: { q: query || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
@@ -32,16 +32,16 @@ export const securityApi = {
 
   // 1a. Unified live-search candidates (active bookings + registered member units)
   searchCheckinCandidates: async (query?: string): Promise<CheckinCandidate[]> => {
-    const res = await apiClient.get('/mastertruck/security/checkin-candidates', {
+    const res = await apiClient.get('/kim3/security/checkin-candidates', {
       params: { q: query || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
   },
 
-  // 1b. Lookup unit member from tbl_member_unit (/mastertruck/kendaraan-lookup)
+  // 1b. Lookup unit member from tbl_member_unit (/kim3/kendaraan-lookup)
   lookupUnitMember: async (nopol: string) => {
     try {
-      const res = await apiClient.get('/mastertruck/kendaraan-lookup', {
+      const res = await apiClient.get('/kim3/kendaraan-lookup', {
         params: { nopol }
       });
       return Array.isArray(res.data) ? res.data : [];
@@ -52,7 +52,7 @@ export const securityApi = {
 
   // 1c. Daftar karyawan aktif (sch_pos.tbl_employee) untuk dropdown PIC
   getEmployees: async (query?: string, kodeCabang?: string): Promise<EmployeeItem[]> => {
-    const res = await apiClient.get('/mastertruck/security/employees', {
+    const res = await apiClient.get('/kim3/security/employees', {
       params: { q: query || '', kode_cabang: kodeCabang || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
@@ -61,7 +61,7 @@ export const securityApi = {
   // 1d. Ambil informasi cabang pengguna (kode_cabang & nama_cabang)
   getUserStore: async (userId: string): Promise<UserStoreInfo | null> => {
     try {
-      const res = await apiClient.get('/mastertruck/security/user-store', {
+      const res = await apiClient.get('/kim3/security/user-store', {
         params: { userid: userId }
       });
       const data = Array.isArray(res.data) ? res.data[0] : res.data;
@@ -86,7 +86,7 @@ export const securityApi = {
     petugas_security: string;
     catatan_masuk?: string;
   }): Promise<CheckinResponse> => {
-    const res = await apiClient.post('/mastertruck/security/check-in', payload);
+    const res = await apiClient.post('/kim3/security/check-in', payload);
     // API Builder membungkus result set POST dalam { data: ... }.
     const body = res.data;
     const unwrapped =
@@ -107,13 +107,13 @@ export const securityApi = {
     sudut_pandang: string;
     foto_data: string;
   }) => {
-    const res = await apiClient.post('/mastertruck/security/add-foto', payload);
+    const res = await apiClient.post('/kim3/security/add-foto', payload);
     return res.data;
   },
 
   // 4. Get active vehicles currently inside (waktu_check_out IS NULL)
   getActiveInside: async (query?: string, kodeCabang?: string): Promise<ActiveInsideVehicle[]> => {
-    const res = await apiClient.get('/mastertruck/security/active-inside', {
+    const res = await apiClient.get('/kim3/security/active-inside', {
       params: { q: query || '', kode_cabang: kodeCabang || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
@@ -126,7 +126,7 @@ export const securityApi = {
     petugas_security_keluar: string;
     catatan_keluar?: string;
   }): Promise<any> => {
-    const res = await apiClient.post('/mastertruck/security/check-out', {
+    const res = await apiClient.post('/kim3/security/check-out', {
       kunjungan_id: payload.kunjungan_id ?? payload.id,
       id: payload.id,
       petugas_security: payload.petugas_security_keluar,
@@ -144,7 +144,7 @@ export const securityApi = {
 
   // 6. Get memo keluar (checkout history)
   getMemoKeluar: async (query?: string, kodeCabang?: string): Promise<MemoKeluarItem[]> => {
-    const res = await apiClient.get('/mastertruck/security/memo-keluar', {
+    const res = await apiClient.get('/kim3/security/memo-keluar', {
       params: { q: query || '', kode_cabang: kodeCabang || '' }
     });
     return Array.isArray(res.data) ? res.data : [];
@@ -152,7 +152,7 @@ export const securityApi = {
 
   // 7. Get photos for a visit
   getFotoKunjungan: async (kunjungan_id: number): Promise<MsFoto[]> => {
-    const res = await apiClient.get('/mastertruck/security/foto-kunjungan', {
+    const res = await apiClient.get('/kim3/security/foto-kunjungan', {
       params: { kunjungan_id }
     });
     return Array.isArray(res.data) ? res.data : [];
@@ -165,7 +165,7 @@ export const securityApi = {
     company?: string;
   }) => {
     const apiKey = import.meta.env.VITE_DARKOPOS_API_KEY || 'TURNONTHEAPI98';
-    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004').replace(/\/+$/, '');
+    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://leon-guru-brooklyn-watch.trycloudflare.com').replace(/\/+$/, '');
 
     const response = await axios.post(
       `${baseUrl}/api/v1/users/login`,
@@ -188,7 +188,7 @@ export const securityApi = {
 
   // 9. DarkoPOS Logout (/api/v1/users/logout)
   logoutDarkoPos: async (idToken?: string | null, sessionId?: string | null) => {
-    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'http://52.77.133.95:9004').replace(/\/+$/, '');
+    const baseUrl = (import.meta.env.VITE_DARKOPOS_BASE_URL || 'https://leon-guru-brooklyn-watch.trycloudflare.com').replace(/\/+$/, '');
     if (!baseUrl || !idToken) return;
 
     try {
